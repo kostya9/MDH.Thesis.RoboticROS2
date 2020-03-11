@@ -2,9 +2,22 @@
 FROM athackst/ros2:dashing-dev
 
 # Uncomment this line and add custom packages and dependencies you want to install here.
-#sudo apt-get update && sudo apt-get install -y \
+# sudo apt-get update && sudo apt-get install -y \
 # put dependent packages here
 # && rm -rf /var/lib/apt/lists/*
+
+# install gazebo
+# RUN curl -sSL http://get.gazebosim.org | sh
+RUN sudo apt-get update
+RUN sudo apt install -y ros-dashing-gazebo-ros-pkgs
+
+# install PointCloudLibrary (pcl)
+RUN sudo apt install -y libpcl-dev
+RUN sudo apt install -y ros-dashing-pcl-conversions
+
+# install rviz2
+RUN sudo apt install -y ros-dashing-rviz2
+
 
 # This Dockerfile adds a non-root 'vscode' user with sudo access. However, for Linux,
 # this user's GID/UID must match your local user UID/GID to avoid permission issues
@@ -26,5 +39,7 @@ RUN groupadd --gid $USER_GID $USERNAME \
     && rm -rf /var/lib/apt/lists/*
 
 # The entrypoint for the container to source the environment
-COPY entrypoint.sh /setup/entrypoint.sh
+# COPY entrypoint.sh /setup/entrypoint.sh
 ENTRYPOINT [ "/setup/entrypoint.sh" ]
+
+CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"

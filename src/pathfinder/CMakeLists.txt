@@ -25,6 +25,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(pcl_conversions REQUIRED)
 
 set(msg_files
   "msg/Move.msg"
