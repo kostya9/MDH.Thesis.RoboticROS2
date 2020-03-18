@@ -1,0 +1,354 @@
+env int msgDelay = 50;
+env int moveDelay = 1000;
+
+env int MAPSIZE = 20;
+
+env double laserDist = 3;
+env double INFINITY = 9999;
+env int lasers = 10;
+env double pi = 3.14;
+env double minAngle = pi / 4;
+env double maxAngle = 3 * pi / 4;
+env double angleIncrement = (maxAngle - minAngle) / lasers;
+env double laserLength = 10;
+env double steps = 20;
+env double stepLength = steps / laserLength;
+
+env int COLLISION = -1;
+
+
+// ROTATIONS
+env int NORTH = 0;
+env int EAST = 1;
+env int SOUTH = 2;
+env int WEST = 3;
+
+reactiveclass RobotHardware(10) {
+	knownrebecs {
+		Robot robot;
+	}
+	
+	statevars {
+		int[20][20] map;
+		int posX;
+		int posY;
+		int rot;
+		boolean moving;
+		
+		// variables for assertion
+		int prevPosX;
+		int prevPosY;
+		int prevRot;
+		boolean isFirstState;
+	}
+	
+	RobotHardware()
+	{
+		moving = true;
+		isFirstState = true;
+		
+		setCollisions();
+		laserScanSend();
+		moveActuator() after(moveDelay);
+	}
+	
+	// USE THIS METHOD TO SET COLLISIONS ON THE MAP
+	void setCollisions() { 
+		map[0][1] = COLLISION;
+	}
+	
+	double tan(double angle) {
+		if(angle > (pi / 2)) {
+			angle = angle - pi;
+		}
+		
+		double x = angle;
+		// taylor series expansion
+		return x + x*x*x / 3 + 2*x*x*x*x*x/15; 
+	} 
+	
+	double sqrt(double x) {
+		// taylor series expansion
+		return 1 + (x-1) + (x-1)*(x-1)/2 + (x-1)*(x-1)*(x-1)/6; 
+	}
+	
+	double getDistanceToCollision(double dy, double curAngle) {
+		// f(x) = kx
+		// x = f(x) / k
+		// where k - the tangent of tilt angle
+		double dx = dy / tan(curAngle);
+		double turnedX, turnedY;
+				
+		if(rot == NORTH)
+		{
+			turnedX = dx;
+			turnedY = dy;
+		}
+		else if(rot == EAST)
+		{
+			turnedX = -dy;
+			turnedY = dx;
+		}
+		else if(rot == SOUTH)
+		{
+			turnedX = -dx;
+			turnedY = dy;
+		}
+		else if (rot == WEST)
+		{
+			turnedX = dy;
+			turnedY = -dx;
+		}
+		
+		int yIndx = posY + (int)dy;
+		int xIndx = posX + (int)dx;
+		
+		// check collision with end of map
+		if ((yIndx >= 20) || (yIndx < 0)) {
+			return 0;
+		}
+		
+		// check collision with end of map
+		if((xIndx >= 20) || (xIndx < 0)) {
+			return 0;
+		}
+		
+		if(map[xIndx][yIndx] == COLLISION) {
+			return sqrt(dy * dy + dx * dx);
+		}
+		
+		return INFINITY;
+	}
+	
+	// Send laser data to robot software
+	msgsrv laserScanSend() {
+		double[10] dists;
+		// init array
+		for(int i = 0; i < lasers; i++) {
+			dists[i] = INFINITY;
+		}
+
+		// for each laser 
+		// go through distances from 0 to laserLength
+		// and if there is collision (and it is the first collision) 
+		//     write the distance to it
+		// else
+		//     do nothing
+		double curAngle = minAngle;
+		for(int i = 0; i < lasers; i++) {
+		
+			// test the cells for collision where f(x) = dy
+			// f(x) - laser ray function
+			for (double dy = 0; dy <= laserLength; dy += stepLength) {
+				if(dists[i] == INFINITY) {
+					dists[i] = getDistanceToCollision(dy, curAngle);
+				}
+			}
+			curAngle = curAngle + angleIncrement;
+		}
+		
+		robot.onLaserScan(posX, posY, rot, moving, dists);
+		
+		self.laserScanSend() after(msgDelay);
+	}
+	
+	// Move the actual robot (change pos)
+	msgsrv moveActuator() {	
+		// no movement when finished
+		if(moving)
+		{
+			int dx, dy;
+			if(rot == NORTH)
+			{
+				dx = 0;
+				dy = 1;
+			}
+			else if(rot == EAST)
+			{
+				dx = 1;
+				dy = 0;
+			}
+			else if(rot == SOUTH)
+			{
+				dx = 0;
+				dy = -1;
+			}
+			else if (rot == WEST)
+			{
+				dx = -1;
+				dy = 0;
+			}
+			
+			self.prevPosX = posX;
+			self.posX += dx;
+			self.prevPosY = posY;
+			self.posY += dy;
+		}
+		
+		self.isFirstState = false;
+		moveActuator() after(moveDelay);
+	}
+	
+	msgsrv move() {
+		moving = true;
+	}
+	
+	msgsrv stop() {
+		moving = false;
+	}
+	
+	msgsrv turnLeft() {
+		prevRot = rot;
+		rot = (rot - 1) % 4;
+	}
+	
+	msgsrv turnRight() {
+		prevRot = rot;
+		rot = (rot + 1) % 4;
+	}
+}
+
+reactiveclass Pathfinder(11)
+{
+	statevars {
+		double xPos;
+	    double yPos;
+	    double curYaw;
+	    boolean[20][20] map;
+	    
+	    int[400] openList;
+	    int[400] closedList;
+	    double[400] hs;
+	    double[400] gs;
+	    double[400] fs;
+	    int[400] curPath;
+	}
+	
+	msgsrv setPosition(double nextxPos, double nextyPos, int rot) {
+		self.xPos = nextxPos;
+		self.yPos = nextyPos;
+		if(rot == NORTH)
+		{
+			self.curYaw = pi/2;
+		}
+		else if(rot == EAST)
+		{
+			self.curYaw = 0;
+		}
+		else if(rot == SOUTH)
+		{
+			self.curYaw = -pi/2;
+		}
+		else if (rot == WEST)
+		{
+			self.curYaw = pi;
+		}
+	}
+	
+	double sqrt(double x) {
+		// taylor series expansion
+		return 1 + (x-1) + (x-1)*(x-1)/2 + (x-1)*(x-1)*(x-1)/6; 
+	}
+	
+	double distToSelf(double x, double y) {
+		double dy = y - self.yPos;
+		double dx = x - self.xPos;
+		return sqrt(dy * dy + dx * dx);
+	}
+	
+	void addToList(int[400] list, int value) {
+		boolean added = false;
+		for(int i = 0; i < 400; i++) {
+			if(list[i] == -1) {
+				added = true;
+				list[i] = value;
+			}
+		}
+		if(!added) {
+			assertion(false, "buffer overflow");
+		}
+	}
+	
+	void removeFromList(int[400] list, int idx) {
+		int lastIdx = 399; 
+		for(int i = 0; i < 400; i++) {
+			if(list[i] == -1) {
+				lastIdx = i;
+				break;
+			}
+		}
+		
+		// Swap with the last element
+		// and erase new last element
+		int lastValue = list[lastIdx];
+		list[lastIdx] = list[idx];
+		list[idx] = lastValue;
+		list[lastIdx] = -1;
+	}
+	
+	int findIdxInList(int[400] list, int value) {
+		for(int i = 0; i < 400; i++) {
+			if(list[i] == value) {
+				return i;
+			}
+			
+			if(list[i] == -1) {
+				return -1;
+			}
+		}
+		
+		return -1;
+	}
+	
+	double cos(double x) {
+		return 1 - x*x/2 + x*x*x*x/24;
+	}
+	
+	double sin(double x) {
+		return 1 - x*x*x/6 + x*x*x*x*x/120;
+	}
+	
+	msgsrv addCollision(double distance, double dYaw) {
+		double yaw = self.curYaw + dYaw;
+	    double targetX = self.xPos + distance * cos(yaw);
+	    double targetY = self.yPos + distance * sin(yaw);
+	
+	    double targetXIndex = (int)(targetX);
+	    double targetYIndex = (int)(targetY);
+	
+	    if(targetXIndex < 0 || targetXIndex >= MAPSIZE || 
+	        targetYIndex < 0 || targetYIndex >= MAPSIZE) 
+	    {
+	       // out of bounds
+	    } else {
+	    	map[targetXIndex][targetYIndex] = true;
+	    }
+	}
+}
+
+reactiveclass Robot(10) {
+	knownrebecs {
+		RobotHardware rh;
+	}
+	
+	statevars {
+		int targetX;
+		int targetY;
+		boolean finish;
+	}
+	
+	Robot(int x, int y) {
+		self.targetX = x;
+		self.targetY = y;
+	}
+
+	// Straightforward algorithm - just follow target, no collision avoidance
+	msgsrv onLaserScan(int posX, int posY, int rot, boolean moving, double[10] laserDistances) {
+		
+	}
+}
+
+main {
+	Robot r(rh):((int)5, (int)2);
+	RobotHardware rh(r):();
+}
