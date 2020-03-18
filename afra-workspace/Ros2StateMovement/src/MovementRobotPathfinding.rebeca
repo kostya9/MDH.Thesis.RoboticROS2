@@ -216,12 +216,12 @@ reactiveclass Pathfinder(11)
 	    double curYaw;
 	    boolean[20][20] map;
 	    
-	    int[400] openList;
-	    int[400] closedList;
-	    double[400] hs;
-	    double[400] gs;
-	    double[400] fs;
-	    int[400] curPath;
+	    int[127] openList;
+	    int[127] closedList;
+	    double[20][20] hs;
+	    double[20][20] gs;
+	    double[20][20] fs;
+	    int[127] curPath;
 	}
 	
 	msgsrv setPosition(int nextxPos, int nextyPos, int rot) {
@@ -256,9 +256,9 @@ reactiveclass Pathfinder(11)
 		return sqrt(dy * dy + dx * dx);
 	}
 	
-	void addToList(int[400] list, int value) {
+	void addToList(int[127] list, int value) {
 		boolean added = false;
-		for(int i = 0; i < 400; i++) {
+		for(int i = 0; i < 127; i++) {
 			if(list[i] == -1) {
 				added = true;
 				list[i] = value;
@@ -269,9 +269,9 @@ reactiveclass Pathfinder(11)
 		assertion(added, "buffer overflow");
 	}
 	
-	void removeFromList(int[400] list, int idx) {
-		int lastIdx = 399; 
-		for(int i = 0; i < 400; i++) {
+	void removeFromList(int[127] list, int idx) {
+		int lastIdx = 126; 
+		for(int i = 0; i < 127; i++) {
 			if(list[i] == -1) {
 				lastIdx = i;
 				break;
@@ -286,8 +286,8 @@ reactiveclass Pathfinder(11)
 		list[lastIdx] = -1;
 	}
 	
-	int findIdxInList(int[400] list, int value) {
-		for(int i = 0; i < 400; i++) {
+	int findIdxInList(int[127] list, int value) {
+		for(int i = 0; i < 127; i++) {
 			if(list[i] == value) {
 				return i;
 			}
@@ -298,6 +298,16 @@ reactiveclass Pathfinder(11)
 		}
 		
 		return -1;
+	}
+	
+	int size(int[127] list) {
+		for(int i = 0; i < 127; i++) {
+			if(list[i] == -1) {
+				return i;
+			}
+		}
+		
+		return 127;
 	}
 	
 	double cos(double x) {
@@ -323,6 +333,10 @@ reactiveclass Pathfinder(11)
 	msgsrv calcPath() {
 		int pos = posToIdx(xPos, yPos);
 		addToList(openList, pos);
+		
+		while(size(openList) != 0) {
+		
+		}
 	}
 	
 	msgsrv addCollision(double distance, double dYaw) {
