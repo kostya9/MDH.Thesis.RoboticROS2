@@ -211,8 +211,8 @@ reactiveclass RobotHardware(10) {
 reactiveclass Pathfinder(11)
 {
 	statevars {
-		double xPos;
-	    double yPos;
+		int xPos;
+	    int yPos;
 	    double curYaw;
 	    boolean[20][20] map;
 	    
@@ -224,7 +224,7 @@ reactiveclass Pathfinder(11)
 	    int[400] curPath;
 	}
 	
-	msgsrv setPosition(double nextxPos, double nextyPos, int rot) {
+	msgsrv setPosition(int nextxPos, int nextyPos, int rot) {
 		self.xPos = nextxPos;
 		self.yPos = nextyPos;
 		if(rot == NORTH)
@@ -262,11 +262,11 @@ reactiveclass Pathfinder(11)
 			if(list[i] == -1) {
 				added = true;
 				list[i] = value;
+				break;
 			}
 		}
-		if(!added) {
-			assertion(false, "buffer overflow");
-		}
+		
+		assertion(added, "buffer overflow");
 	}
 	
 	void removeFromList(int[400] list, int idx) {
@@ -306,6 +306,23 @@ reactiveclass Pathfinder(11)
 	
 	double sin(double x) {
 		return 1 - x*x*x/6 + x*x*x*x*x/120;
+	}
+	
+	int posToIdx(int x, int y) {
+		return x + y * 20;
+	}
+	
+	int idxToY(int idx) {
+		return idx / 20;
+	}
+	
+	int idxToX(int idx) {
+		return idx % 20;
+	}
+	
+	msgsrv calcPath() {
+		int pos = posToIdx(xPos, yPos);
+		addToList(openList, pos);
 	}
 	
 	msgsrv addCollision(double distance, double dYaw) {
