@@ -269,7 +269,7 @@ reactiveclass Pathfinder(11)
 		assertion(added, "buffer overflow");
 	}
 	
-	void removeFromList(int[127] list, int idx) {
+	int removeFromList(int[127] list, int idx) {
 		int lastIdx = 126; 
 		for(int i = 0; i < 127; i++) {
 			if(list[i] == -1) {
@@ -280,10 +280,11 @@ reactiveclass Pathfinder(11)
 		
 		// Swap with the last element
 		// and erase new last element
-		int lastValue = list[lastIdx];
-		list[lastIdx] = list[idx];
-		list[idx] = lastValue;
+		int toDelete = list[idx];
+		list[idx] = list[lastIdx];
 		list[lastIdx] = -1;
+		
+		return toDelete;
 	}
 	
 	int findIdxInList(int[127] list, int value) {
@@ -330,12 +331,46 @@ reactiveclass Pathfinder(11)
 		return idx % 20;
 	}
 	
-	msgsrv calcPath() {
-		int pos = posToIdx(xPos, yPos);
-		addToList(openList, pos);
+	int idxOfSmallestF() {
+		int smallestIdx = 0;
+		int smallestValue = openList[0];
+		for(int i = 0; openList[i] != -1; i++) {
+			int cur = openList[i]
+			int x = idxToX(cur);
+			int y = idxToY(cur);
+			double curF = fs[x][y];
+			if(curF < smallestValue) {
+				smallestF = curF;
+				smallestIdx = i;
+			}
+		}
+		
+		return smallestIdx;
+	}
+	
+	msgsrv calcPath(itn xTarget, int yTarget) {
+		int curPos = posToIdx(xPos, yPos);
+		addToList(openList, curPos);
 		
 		while(size(openList) != 0) {
-		
+			int minIdx = idxOfSmallestF();
+			int deleted = removeFromList(openList, minIdx);
+			addToList(closedList, minIdx);
+			
+			int x = idxToX(minIdx);
+			int y = idxToY(minIdx);
+			if(x == xTarget && y == yTarget) {
+				// Target acquired!
+			}
+			
+			// for each neighbot
+			for(int dx = -1; dx <= 1; dx++) {
+				for(int dy = -1; dy <= 1; dy++) {
+					// verify coordinates
+					// calc g, h, f
+					// add to open list
+				}
+			}
 		}
 	}
 	

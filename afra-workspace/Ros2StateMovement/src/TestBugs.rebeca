@@ -1,13 +1,13 @@
 reactiveclass ListContainer(1) {
 	statevars {
-		int[128] list;
+		int[127] list;
 	}
 	
 	ListContainer() {
 		entrypoint();
 	}
 	
-	void doSomethingWithList(int[128] inputList, int i) {
+	void doSomethingWithList(int[127] inputList, int i) {
 	}
 	
 	msgsrv entrypoint() {
