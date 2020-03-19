@@ -415,6 +415,12 @@ reactiveclass Pathfinder(11)
 					
 						int neighborX = x + dx;
 						int neighborY = y + dy;
+						int neighborIdx = posToIdx(x, y);
+						
+						int alreadyInClosedList = findIdxInList(closedList, neighborIdx);
+						if(alreadyInClosedList != -1) {
+							continue;
+						}
 						
 						if(neighborX < 0 || neighborX >= 20 ||
 							neighborY < 0 || neighborY >= 20) {
@@ -425,7 +431,6 @@ reactiveclass Pathfinder(11)
 						double h = distTo(x, y, xTarget, yTarget);
 						double f = g + h;
 						
-						int neighborIdx = posToIdx(x, y);
 						int alreadyInOpenList = findIdxInList(openList, neighborIdx);
 						if(alreadyInOpenList != -1) {
 							if(g > gs[neighborX][neighborY]) {
@@ -503,7 +508,7 @@ reactiveclass Robot(10) {
 		int nextX = path[curPathIdx] % 20;
 		int nextY = path[curPathIdx] / 20;
 		curPathIdx++;
-		if(posX == nextX && posY == nextY) {
+		if(posX == self.targetX && posY == self.targetY) {
 			if(!finish) {
 				rh.stop();
 				finish = true;
