@@ -1,5 +1,5 @@
 env int msgDelay = 50;
-env int moveDelay = 1000;
+env int moveDelay = 200;
 
 env double laserDist = 3;
 env double INFINITY = 9999;

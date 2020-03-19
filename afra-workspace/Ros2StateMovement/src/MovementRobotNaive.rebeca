@@ -1,5 +1,5 @@
 env int msgDelay = 50;
-env int moveDelay = 1000;
+env int moveDelay = 200;
 
 env double laserDist = 3;
 env double INFINITY = 9999;
@@ -10,7 +10,7 @@ env double maxAngle = 3 * pi / 4;
 env double angleIncrement = (maxAngle - minAngle) / lasers;
 env double laserLength = 10;
 env double steps = 20;
-env double stepLength = steps / laserLength;
+env double stepLength = laserLength / steps;
 
 env int COLLISION = -1;
 
