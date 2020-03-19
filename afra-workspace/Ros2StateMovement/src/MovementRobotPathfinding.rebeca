@@ -223,6 +223,8 @@ reactiveclass Pathfinder(11)
 	    double[20][20] gs;
 	    double[20][20] fs;
 	    int[127] curPath;
+	    
+	    boolean changed;
 	}
 	
 	Pathfinder() {
@@ -384,50 +386,58 @@ reactiveclass Pathfinder(11)
 	}
 	
 	msgsrv calcPath(int xTarget, int yTarget) {
-		int curPos = posToIdx(xPos, yPos);
-		addToList(openList, curPos);
-		
-		while(size(openList) != 0) {
-			int curOpenListIdx = idxOfSmallestF();
-			int curNodeIdx = removeFromList(openList, curOpenListIdx);
-			addToList(closedList, curNodeIdx);
+		if(self.changed) {
+			int curPos = posToIdx(xPos, yPos);
+			addToList(openList, curPos);
 			
-			int x = idxToX(curNodeIdx);
-			int y = idxToY(curNodeIdx);
-			if(x == xTarget && y == yTarget) {
-				int[127] path = generatePathFromTarget(xTarget, yTarget);
-				// Send new path to sender
-				// or save it
-			}
-			
-			// for each neighbot
-			for(int dx = -1; dx <= 1; dx++) {
-				for(int dy = -1; dy <= 1; dy++) {
+			while(size(openList) != 0) {
+				int curOpenListIdx = idxOfSmallestF();
+				int curNodeIdx = removeFromList(openList, curOpenListIdx);
+				addToList(closedList, curNodeIdx);
 				
-					int neighborX = x + dx;
-					int neighborY = y + dy;
-					
-					if(neighborX < 0 || neighborX >= 20 ||
-						neighborY < 0 || neighborY >= 20) {
-						continue;
-					}
-					
-					double g = gs[x][y] + 1; // TODO: handle diagonals
-					double h = distTo(x, y, xTarget, yTarget);
-					double f = g + h;
-					
-					int neighborIdx = posToIdx(x, y);
-					int alreadyInOpenList = findIdxInList(openList, neighborIdx);
-					if(alreadyInOpenList != -1) {
-						if(g > gs[neighborX][neighborY]) {
+				int x = idxToX(curNodeIdx);
+				int y = idxToY(curNodeIdx);
+				if(x == xTarget && y == yTarget) {
+					int[127] path = generatePathFromTarget(xTarget, yTarget);
+					((Robot)sender).onNewPath(path);
+					break;
+				}
+				
+				// for each neighbor
+				for(int dx = -1; dx <= 1; dx++) {
+					for(int dy = -1; dy <= 1; dy++) {
+						
+						// IGNORE DIAGONALS
+						// TODO: HANDLE DIAGONALS
+						if(dx + dy != 1 && dx + dy != -1) {
 							continue;
 						}
-					}
 					
-					parents[neighborX][neighborY] = curNodeIdx;
-					gs[neighborX][neighborY] = g;
-					hs[neighborX][neighborY] = h;
-					fs[neighborX][neighborY] = f;
+						int neighborX = x + dx;
+						int neighborY = y + dy;
+						
+						if(neighborX < 0 || neighborX >= 20 ||
+							neighborY < 0 || neighborY >= 20) {
+							continue;
+						}
+						
+						double g = gs[x][y] + 1; // TODO: handle diagonals
+						double h = distTo(x, y, xTarget, yTarget);
+						double f = g + h;
+						
+						int neighborIdx = posToIdx(x, y);
+						int alreadyInOpenList = findIdxInList(openList, neighborIdx);
+						if(alreadyInOpenList != -1) {
+							if(g > gs[neighborX][neighborY]) {
+								continue;
+							}
+						}
+						
+						parents[neighborX][neighborY] = curNodeIdx;
+						gs[neighborX][neighborY] = g;
+						hs[neighborX][neighborY] = h;
+						fs[neighborX][neighborY] = f;
+					}
 				}
 			}
 		}
@@ -446,7 +456,10 @@ reactiveclass Pathfinder(11)
 	    {
 	       // out of bounds
 	    } else {
-	    	map[targetXIndex][targetYIndex] = true;
+	    	if(!map[targetXIndex][targetYIndex]) {
+	    		self.changed = true;
+	    	}
+ 	    	map[targetXIndex][targetYIndex] = true;
 	    }
 	}
 }
@@ -454,12 +467,15 @@ reactiveclass Pathfinder(11)
 reactiveclass Robot(10) {
 	knownrebecs {
 		RobotHardware rh;
+		Pathfinder pf;
 	}
 	
 	statevars {
 		int targetX;
 		int targetY;
 		boolean finish;
+		int[127] path;
+		int curPathIdx;
 	}
 	
 	Robot(int x, int y) {
@@ -469,11 +485,73 @@ reactiveclass Robot(10) {
 
 	// Straightforward algorithm - just follow target, no collision avoidance
 	msgsrv onLaserScan(int posX, int posY, int rot, boolean moving, double[10] laserDistances) {
-		
+		if(!finish) {
+			pf.setPosition(posX, posY, rot);
+			
+			double curAngle = minAngle;
+			for(int i = 0; i < 10; i++) {
+				pf.addCollision(laserDistances[i], curAngle);
+				curAngle = curAngle + angleIncrement;
+			}
+			
+			pf.calcPath(self.targetX, self.targetY);
+			moveNaive(posX, posY, rot, moving);
+		}
+	}
+	
+	void moveNaive(int posX, int posY, int rot, boolean moving) {
+		int nextX = path[curPathIdx] % 20;
+		int nextY = path[curPathIdx] / 20;
+		curPathIdx++;
+		if(posX == nextX && posY == nextY) {
+			if(!finish) {
+				rh.stop();
+				finish = true;
+			}
+		} else {
+			boolean stop = false;
+			if(nextY > posY) {
+				if(rot != NORTH) {
+					rh.turnRight();
+					stop = true;
+				}
+			}
+			else if(nextY < posY) {
+				if(rot != SOUTH) {
+					rh.turnRight();
+					stop = true;
+				}
+			}
+			else if(nextX > posX) {
+				if(rot != EAST) {
+					rh.turnRight();
+					stop = true;
+				}
+			}
+			else if(nextX < posX) {
+				if(rot != WEST) {
+					rh.turnRight();
+					stop = true;
+				}
+			}
+			
+			if(stop) {
+				rh.stop();
+			}
+			else if(!moving) {
+				rh.move();
+			}
+		}
+	}
+	
+	msgsrv onNewPath(int[127] newPath) {
+		self.path = newPath;
+		self.curPathIdx = 0;
 	}
 }
 
 main {
-	Robot r(rh):((int)5, (int)2);
+	Pathfinder pf():();
+	Robot r(rh, pf):((int)5, (int)2);
 	RobotHardware rh(r):();
 }

@@ -1,0 +1,17 @@
+property{
+	define {
+		curCode = rh.posX >= 20 || rh.posY < 0 || rh.posY >= 20 || rh.posY < 0 
+					? COLLISION 
+					: rh.map[rh.posX][rh.posY];
+		isOnTargetPosition = rh.posX == r.targetX && rh.posY == r.targetY;
+		finish = r.finish;
+		hasMoved = rh.rot != rh.prevRot || rh.posX != rh.prevPosX || rh.posY != rh.prevPosY;
+		isFirstState = rh.isFirstState;
+	}
+
+	Assertion {
+		noCollision : curCode != COLLISION;
+		isRotatingOrMovingWhenNotFinished: finish || isFirstState || (!finish && hasMoved);
+		isOnTargetPositionWhenFinished: !finish || (finish && isOnTargetPosition);
+	}
+}
