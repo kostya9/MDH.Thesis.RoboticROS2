@@ -279,7 +279,7 @@ reactiveclass Pathfinder(11)
 		int lastIdx = 126; 
 		for(int i = 0; i < 127; i++) {
 			if(list[i] == -1) {
-				lastIdx = i;
+				lastIdx = i - 1;
 				break;
 			}
 		}
@@ -363,20 +363,19 @@ reactiveclass Pathfinder(11)
 		path = clearList(path);
 		
 		int els = 0;
-		int x = xTarget;
-		int y = yTarget;
+		int parent = posToIdx(xTarget, yTarget);
 		while(true) {
-			int parent = parents[x][y];
-			x = idxToX(parent);
-			y = idxToY(parent);
-			
+			int x = idxToX(parent);
+			int y = idxToY(parent);
 			if(x == xPos && y == yPos) {
 				break;
 			}
 			
 			path = addToList(path, parent);
 			els++;
+			parent = parents[x][y];
 		}
+		
 		
 		// Reverse the path;
 		for(int idx = 0; idx < els / 2; idx++) {
@@ -390,7 +389,8 @@ reactiveclass Pathfinder(11)
 	}
 	
 	msgsrv calcPath(int xTarget, int yTarget) {
-		if(self.changed) {
+		if(changed) {
+			changed = false;
 			openList = clearList(openList);
 			closedList = clearList(closedList);
 			
@@ -459,7 +459,6 @@ reactiveclass Pathfinder(11)
 					}
 				}
 			}
-			changed = false;
 		}
 	}
 	
@@ -478,8 +477,8 @@ reactiveclass Pathfinder(11)
 	    } else {
 	    	if(!map[targetXIndex][targetYIndex]) {
 	    		self.changed = true;
+	    		map[targetXIndex][targetYIndex] = true;
 	    	}
- 	    	map[targetXIndex][targetYIndex] = true;
 	    }
 	}
 }
@@ -508,17 +507,18 @@ reactiveclass Robot(10) {
 		assertion(moving, "-1");
 		if(!finish) {
 			double curAngle = minAngle;
+			pf.setPosition(posX, posY, rot);
 			for(int i = 0; i < 10; i++) {
 				double dist = laserDistances[i];
-				if(dist == INFINITY) {
-					continue;
+				
+				if(dist != INFINITY && dist != 0) {
+					pf.addCollision(dist, curAngle);
 				}
 			
-				pf.addCollision(dist, curAngle);
 				curAngle = curAngle + angleIncrement;
 			}
 			
-			pf.setPosition(posX, posY, rot);
+			
 			pf.calcPath(self.targetX, self.targetY);
 			moveNaive(posX, posY, rot, moving);
 		}
@@ -568,7 +568,7 @@ reactiveclass Robot(10) {
 				}
 			}
 			
-			if(stop) {
+			if(stop && moving) {
 				rh.stop();
 			}
 			else if(!moving) {
