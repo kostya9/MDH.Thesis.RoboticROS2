@@ -215,6 +215,7 @@ reactiveclass Pathfinder(11)
 	    int yPos;
 	    double curYaw;
 	    boolean[20][20] map;
+	    int[20][20] parents;
 	    
 	    int[127] openList;
 	    int[127] closedList;
@@ -222,6 +223,12 @@ reactiveclass Pathfinder(11)
 	    double[20][20] gs;
 	    double[20][20] fs;
 	    int[127] curPath;
+	}
+	
+	Pathfinder() {
+		clearList(openList);
+		clearList(closedList);
+		clearList(curPath);
 	}
 	
 	msgsrv setPosition(int nextxPos, int nextyPos, int rot) {
@@ -250,10 +257,16 @@ reactiveclass Pathfinder(11)
 		return 1 + (x-1) + (x-1)*(x-1)/2 + (x-1)*(x-1)*(x-1)/6; 
 	}
 	
-	double distToSelf(double x, double y) {
-		double dy = y - self.yPos;
-		double dx = x - self.xPos;
+	double distTo(double x, double y, double xTarget, double yTarget) {
+		double dy = y - yTarget;
+		double dx = x - xTarget;
 		return sqrt(dy * dy + dx * dx);
+	}
+	
+	void clearList(int[127] list) {
+		for(int i = 0; i < 127; i++) {
+			list[i] = -1;
+		}
 	}
 	
 	void addToList(int[127] list, int value) {
@@ -333,13 +346,13 @@ reactiveclass Pathfinder(11)
 	
 	int idxOfSmallestF() {
 		int smallestIdx = 0;
-		int smallestValue = openList[0];
+		double smallestF = openList[0];
 		for(int i = 0; openList[i] != -1; i++) {
-			int cur = openList[i]
+			int cur = openList[i];
 			int x = idxToX(cur);
 			int y = idxToY(cur);
 			double curF = fs[x][y];
-			if(curF < smallestValue) {
+			if(curF < smallestF) {
 				smallestF = curF;
 				smallestIdx = i;
 			}
@@ -348,27 +361,73 @@ reactiveclass Pathfinder(11)
 		return smallestIdx;
 	}
 	
-	msgsrv calcPath(itn xTarget, int yTarget) {
+	int[127] generatePathFromTarget(int xTarget, int yTarget) {
+		int[127] path;
+		clearList(path);
+		
+		int els = 0;
+		int x = xTarget;
+		int y = yTarget;
+		while(true) {
+			int parent = parents[x][y];
+			addToList(path, parent);
+			els++;
+		}
+		
+		// Reverse the path;
+		for(int idx = 0; idx < els / 2; idx++) {
+			int endElIdx = els - idx - 1;
+			int endEl = path[endElIdx];
+			path[endElIdx] = path[idx];
+			path[idx] = endEl;
+		}
+	}
+	
+	msgsrv calcPath(int xTarget, int yTarget) {
 		int curPos = posToIdx(xPos, yPos);
 		addToList(openList, curPos);
 		
 		while(size(openList) != 0) {
-			int minIdx = idxOfSmallestF();
-			int deleted = removeFromList(openList, minIdx);
-			addToList(closedList, minIdx);
+			int curOpenListIdx = idxOfSmallestF();
+			int curNodeIdx = removeFromList(openList, curOpenListIdx);
+			addToList(closedList, curNodeIdx);
 			
-			int x = idxToX(minIdx);
-			int y = idxToY(minIdx);
+			int x = idxToX(curNodeIdx);
+			int y = idxToY(curNodeIdx);
 			if(x == xTarget && y == yTarget) {
-				// Target acquired!
+				int[127] path = generatePathFromTarget(xTarget, yTarget);
+				// Send new path to sender
+				// or save it
 			}
 			
 			// for each neighbot
 			for(int dx = -1; dx <= 1; dx++) {
 				for(int dy = -1; dy <= 1; dy++) {
-					// verify coordinates
-					// calc g, h, f
-					// add to open list
+				
+					int neighborX = x + dx;
+					int neighborY = y + dy;
+					
+					if(neighborX < 0 || neighborX >= 20 ||
+						neighborY < 0 || neighborY >= 20) {
+						continue;
+					}
+					
+					double g = gs[x][y] + 1; // TODO: handle diagonals
+					double h = distTo(x, y, xTarget, yTarget);
+					double f = g + h;
+					
+					int neighborIdx = posToIdx(x, y);
+					int alreadyInOpenList = findIdxInList(openList, neighborIdx);
+					if(alreadyInOpenList != -1) {
+						if(g > gs[neighborX][neighborY]) {
+							continue;
+						}
+					}
+					
+					parents[neighborX][neighborY] = curNodeIdx;
+					gs[neighborX][neighborY] = g;
+					hs[neighborX][neighborY] = h;
+					fs[neighborX][neighborY] = f;
 				}
 			}
 		}
