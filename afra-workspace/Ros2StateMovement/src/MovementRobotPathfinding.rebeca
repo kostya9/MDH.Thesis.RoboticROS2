@@ -596,6 +596,7 @@ reactiveclass Robot(10) {
 		}
 		if(posX == self.targetX && posY == self.targetY) {
 			if(!finish) {
+				//assertion(false, "FINISHED!!");
 				rh.stop();
 				finish = true;
 			}
