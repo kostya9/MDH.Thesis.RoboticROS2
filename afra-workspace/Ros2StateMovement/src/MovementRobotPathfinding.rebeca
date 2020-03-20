@@ -222,11 +222,19 @@ reactiveclass RobotHardware(10) {
 	}
 	
 	msgsrv turnLeft() {
-		nextRot = (rot - 1) % 4;
+		if(rot == 0) {
+			nextRot = 3;
+		} else {
+			nextRot = rot - 1;
+		}
 	}
 	
 	msgsrv turnRight() {
-		nextRot = (rot + 1) % 4;
+		if(rot == 3) {
+			nextRot = 0;
+		} else {
+			nextRot = rot + 1;
+		}
 	}
 }
 

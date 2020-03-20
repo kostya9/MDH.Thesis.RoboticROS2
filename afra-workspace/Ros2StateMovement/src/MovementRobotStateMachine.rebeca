@@ -45,6 +45,8 @@ reactiveclass RobotHardware(10) {
 		int rot;
 		boolean moving;
 		
+		int nextRot;
+		
 		// variables for assertion
 		int prevPosX;
 		int prevPosY;
@@ -56,6 +58,8 @@ reactiveclass RobotHardware(10) {
 	{
 		moving = true;
 		isFirstState = true;
+		
+		nextRot = rot;
 		
 		setCollisions();
 		laserScanSend();
@@ -75,7 +79,7 @@ reactiveclass RobotHardware(10) {
 		double x = angle;
 		// taylor series expansion
 		return x + x*x*x / 3 + 2*x*x*x*x*x/15; 
-	} 
+	}
 	
 	double abs(double x) {
 		if(x < 0) {
@@ -86,11 +90,11 @@ reactiveclass RobotHardware(10) {
 	}
 	
 	double sqrt(double x) {
-		double prev = 0;
+		double prev = 4;
 		double next = 5;
 		while(abs(prev - next) > 0.1) {
 			prev = next;
-			next = 1/2 * (x / prev + prev);
+			next = 0.5 * ((x/prev) + prev);
 		}
 		
 		return next;
@@ -101,31 +105,31 @@ reactiveclass RobotHardware(10) {
 		// x = f(x) / k
 		// where k - the tangent of tilt angle
 		double dx = dy / tan(curAngle);
-		double turnedX, turnedY;
+		int turnedX, turnedY;
 				
 		if(rot == NORTH)
 		{
-			turnedX = dx;
-			turnedY = dy;
+			turnedX = (int)dx;
+			turnedY = (int)dy;
 		}
 		else if(rot == EAST)
 		{
-			turnedX = -dy;
-			turnedY = dx;
+			turnedX = (int)dy;
+			turnedY = (int)-dx;
 		}
 		else if(rot == SOUTH)
 		{
-			turnedX = -dx;
-			turnedY = dy;
+			turnedX = (int)-dx;
+			turnedY = (int)dy;
 		}
 		else if (rot == WEST)
 		{
-			turnedX = dy;
-			turnedY = -dx;
+			turnedX = (int)-dy;
+			turnedY = (int)dx;
 		}
 		
-		int yIndx = posY + (int)dy;
-		int xIndx = posX + (int)dx;
+		int yIndx = posY + turnedY;
+		int xIndx = posX + turnedX;
 		
 		// check collision with end of map
 		if ((yIndx >= 20) || (yIndx < 0)) {
@@ -138,7 +142,7 @@ reactiveclass RobotHardware(10) {
 		}
 		
 		if(map[xIndx][yIndx] == COLLISION) {
-			return sqrt(dy * dy + dx * dx);
+			return sqrt((turnedY + 0.5) * (turnedY + 0.5) + (turnedX + 0.5) * (turnedX + 0.5));
 		}
 		
 		return INFINITY;
@@ -159,7 +163,7 @@ reactiveclass RobotHardware(10) {
 		// else
 		//     do nothing
 		double curAngle = minAngle;
-		for(int i = 0; i < lasers; i++) {
+		for(int i = lasers - 1; i >= 0; i--) {
 		
 			// test the cells for collision where f(x) = dy
 			// f(x) - laser ray function
@@ -177,9 +181,14 @@ reactiveclass RobotHardware(10) {
 	}
 	
 	// Move the actual robot (change pos)
-	msgsrv moveActuator() {	
+	msgsrv moveActuator() {
+		if(nextRot != rot) {
+			// rotating
+			prevRot = rot;
+			rot = nextRot;
+		}
 		// no movement when finished
-		if(moving)
+		else if(moving)
 		{
 			int dx, dy;
 			if(rot == NORTH)
@@ -222,13 +231,19 @@ reactiveclass RobotHardware(10) {
 	}
 	
 	msgsrv turnLeft() {
-		prevRot = rot;
-		rot = (rot - 1) % 4;
+		if(rot == 0) {
+			nextRot = 3;
+		} else {
+			nextRot = rot - 1;
+		}
 	}
 	
 	msgsrv turnRight() {
-		prevRot = rot;
-		rot = (rot + 1) % 4;
+		if(rot == 3) {
+			nextRot = 0;
+		} else {
+			nextRot = rot + 1;
+		}
 	}
 }
 
@@ -244,6 +259,8 @@ reactiveclass Robot(10) {
 		int state;
 		int obstacleEndX;
 		int obstacleEndY;
+		
+		int sourceRot;
 	}
 	
 	Robot(int x, int y) {
@@ -257,10 +274,10 @@ reactiveclass Robot(10) {
 			TargetFollow(posX, posY, rot, moving, laserDistances);
 		}
 		else if (state == OBSTACLE_TURN) {
-			ObstacleTurn(laserDistances);
+			ObstacleTurn(laserDistances, rot);
 		}
 		else if (state == OBSTACLE_MOVE) {
-			ObstacleMove(posX, posY, moving, laserDistances);
+			ObstacleMove(posX, posY, rot, moving, laserDistances);
 		}
 		else if(state == FINISH_OBSTACLE_MOVE) {
 			ObstacleEnd(moving);
@@ -273,14 +290,17 @@ reactiveclass Robot(10) {
 		}
 	}
 	
-	void ObstacleTurn(double[10] laserDistances) {
+	void ObstacleTurn(double[10] laserDistances, int rot) {
 		rh.stop();
 		rh.turnLeft();
-		state = OBSTACLE_MOVE;
+		if(sourceRot != rot) {
+			state = OBSTACLE_MOVE;
+		}
 	}
 	
-	void ObstacleMove(int posX, int posY, boolean moving, double[10] laserDistances) {
+	void ObstacleMove(int posX, int posY, int rot, boolean moving, double[10] laserDistances) {
 		if(IsNextToCollision(laserDistances, OBSTACLE_MIN_DIST) == true) {
+			sourceRot = rot;
 			state = OBSTACLE_TURN;
 		} else {
 		
@@ -344,6 +364,7 @@ reactiveclass Robot(10) {
 		else if(IsNextToCollision(laserDistances, OBSTACLE_MIN_DIST) == true) {
 			rh.stop();
 			state = OBSTACLE_TURN;
+			sourceRot = rot;
 		} else {
 			boolean stop = false;
 			if(targetY > posY) {
