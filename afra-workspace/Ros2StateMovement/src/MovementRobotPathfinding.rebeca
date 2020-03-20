@@ -1,5 +1,6 @@
-env int msgDelay = 20;
-env int moveDelay = 100;
+env int msgDelay = 50;
+env int pathfinderDelay = 99;
+env int moveDelay = 200;
 
 env int MAPSIZE = 20;
 
@@ -65,11 +66,25 @@ reactiveclass RobotHardware(10) {
 		double x = angle;
 		// taylor series expansion
 		return x + x*x*x / 3 + 2*x*x*x*x*x/15; 
-	} 
+	}
+	
+	double abs(double x) {
+		if(x < 0) {
+			return -x;
+		}
+		
+		return x;
+	}
 	
 	double sqrt(double x) {
-		// taylor series expansion
-		return 1 + (x-1) + (x-1)*(x-1)/2 + (x-1)*(x-1)*(x-1)/6; 
+		double prev = 0;
+		double next = 5;
+		while(abs(prev - next) > 0.1) {
+			prev = next;
+			next = 1/2 * (x / prev + prev);
+		}
+		
+		return next;
 	}
 	
 	double getDistanceToCollision(double dy, double curAngle) {
@@ -153,7 +168,7 @@ reactiveclass RobotHardware(10) {
 	}
 	
 	// Move the actual robot (change pos)
-	msgsrv moveActuator() {	
+	msgsrv moveActuator() {
 		// no movement when finished
 		if(moving)
 		{
@@ -213,17 +228,29 @@ reactiveclass Pathfinder(11)
 	statevars {
 		int xPos;
 	    int yPos;
+	    
+	    int targetX;
+	    int targetY;
+	    
 	    double curYaw;
 	    boolean[20][20] map;
 	    int[20][20] parents;
 	    
-	    int[127] openList;
-	    int[127] closedList;
+	    int[30] openList;
+	    int[30] closedList;
 	    double[20][20] hs;
 	    double[20][20] gs;
 	    double[20][20] fs;
 	    
 	    boolean changed;
+	    
+	    int changeTimes;
+	}
+	
+	msgsrv setTargetPosition(int x, int y) {
+		self.targetX = x;
+		self.targetY = y;
+		self.changed = true;
 	}
 	
 	msgsrv setPosition(int nextxPos, int nextyPos, int rot) {
@@ -253,17 +280,17 @@ reactiveclass Pathfinder(11)
 		return dy * dy + dx * dx;
 	}
 	
-	int[127] clearList(int[127] list) {
-		for(int i = 0; i < 127; i++) {
+	int[30] clearList(int[30] list) {
+		for(int i = 0; i < 30; i++) {
 			list[i] = -1;
 		}
 		
 		return list;
 	}
 	
-	int[127] addToList(int[127] list, int value) {
+	int[30] addToList(int[30] list, int value) {
 		boolean added = false;
-		for(int i = 0; i < 127; i++) {
+		for(int i = 0; i < 30; i++) {
 			if(list[i] == -1) {
 				added = true;
 				list[i] = value;
@@ -275,9 +302,9 @@ reactiveclass Pathfinder(11)
 		return list;
 	}
 	
-	int[127] removeFromList(int[127] list, int idx) {
-		int lastIdx = 126; 
-		for(int i = 0; i < 127; i++) {
+	int[30] removeFromList(int[30] list, int idx) {
+		int lastIdx = 29; 
+		for(int i = 0; i < 30; i++) {
 			if(list[i] == -1) {
 				lastIdx = i - 1;
 				break;
@@ -293,8 +320,8 @@ reactiveclass Pathfinder(11)
 		return list;
 	}
 	
-	int findIdxInList(int[127] list, int value) {
-		for(int i = 0; i < 127; i++) {
+	int findIdxInList(int[30] list, int value) {
+		for(int i = 0; i < 30; i++) {
 			if(list[i] == value) {
 				return i;
 			}
@@ -307,14 +334,14 @@ reactiveclass Pathfinder(11)
 		return -1;
 	}
 	
-	int size(int[127] list) {
-		for(int i = 0; i < 127; i++) {
+	int size(int[30] list) {
+		for(int i = 0; i < 30; i++) {
 			if(list[i] == -1) {
 				return i;
 			}
 		}
 		
-		return 127;
+		return 30;
 	}
 	
 	double cos(double x) {
@@ -358,12 +385,12 @@ reactiveclass Pathfinder(11)
 		return smallestIdx;
 	}
 	
-	int[127] generatePathFromTarget(int xTarget, int yTarget) {
-		int[127] path;
+	int[30] generatePathFromTarget() {
+		int[30] path;
 		path = clearList(path);
 		
 		int els = 0;
-		int parent = posToIdx(xTarget, yTarget);
+		int parent = posToIdx(targetX, targetY);
 		while(true) {
 			int x = idxToX(parent);
 			int y = idxToY(parent);
@@ -388,9 +415,14 @@ reactiveclass Pathfinder(11)
 		return path;
 	}
 	
-	msgsrv calcPath(int xTarget, int yTarget) {
+	msgsrv calcPath() {
 		if(changed) {
 			changed = false;
+			changeTimes = changeTimes + 1; 
+			if (changeTimes == 3) {
+				assertion(false);
+			}
+			
 			openList = clearList(openList);
 			closedList = clearList(closedList);
 			
@@ -405,8 +437,9 @@ reactiveclass Pathfinder(11)
 				
 				int x = idxToX(curNodeIdx);
 				int y = idxToY(curNodeIdx);
-				if(x == xTarget && y == yTarget) {
-					int[127] path = generatePathFromTarget(xTarget, yTarget);
+				if(x == targetX && y == targetY) {
+					int[30] path = generatePathFromTarget();
+					
 					((Robot)sender).onNewPath(path);
 					break;
 				}
@@ -441,7 +474,7 @@ reactiveclass Pathfinder(11)
 						}
 						
 						double g = gs[x][y] + 1; // TODO: handle diagonals
-						double h = distTo(neighborX, neighborY, xTarget, yTarget);
+						double h = distTo(neighborX, neighborY, targetX, targetY);
 						double f = g + h;
 						
 						int alreadyInOpenList = findIdxInList(openList, neighborIdx);
@@ -464,11 +497,11 @@ reactiveclass Pathfinder(11)
 	
 	msgsrv addCollision(double distance, double dYaw) {
 		double yaw = self.curYaw + dYaw;
-	    double targetX = self.xPos + distance * cos(yaw);
-	    double targetY = self.yPos + distance * sin(yaw);
-		
-	    int targetXIndex = (int)(targetX);
-	    int targetYIndex = (int)(targetY);
+	    double colTargetX = self.xPos + distance * cos(yaw);
+	    double colTargetY = self.yPos + distance * sin(yaw);
+	    
+	    int targetXIndex = (int)(colTargetX);
+	    int targetYIndex = (int)(colTargetY);
 	
 	    if(targetXIndex < 0 || targetXIndex >= MAPSIZE || 
 	        targetYIndex < 0 || targetYIndex >= MAPSIZE) 
@@ -493,18 +526,29 @@ reactiveclass Robot(10) {
 		int targetX;
 		int targetY;
 		boolean finish;
-		int[127] path;
+		int[30] path;
 		int curPathIdx;
 	}
 	
 	Robot(int x, int y) {
 		self.targetX = x;
 		self.targetY = y;
+		self.setTargetPos(); // cannot send to knownrebec
+		self.rebuildPath() after(pathfinderDelay);
+	}
+	
+	msgsrv setTargetPos() {
+		pf.setTargetPosition(self.targetX, self.targetY);
+	}
+	
+	msgsrv rebuildPath() {
+		pf.calcPath();
+		
+		self.rebuildPath() after(pathfinderDelay);
 	}
 
 	// Straightforward algorithm - just follow target, no collision avoidance
 	msgsrv onLaserScan(int posX, int posY, int rot, boolean moving, double[10] laserDistances) {
-		assertion(moving, "-1");
 		if(!finish) {
 			double curAngle = minAngle;
 			pf.setPosition(posX, posY, rot);
@@ -514,12 +558,10 @@ reactiveclass Robot(10) {
 				if(dist != INFINITY && dist != 0) {
 					pf.addCollision(dist, curAngle);
 				}
-			
+				
 				curAngle = curAngle + angleIncrement;
 			}
 			
-			
-			pf.calcPath(self.targetX, self.targetY);
 			moveNaive(posX, posY, rot, moving);
 		}
 	}
@@ -577,7 +619,7 @@ reactiveclass Robot(10) {
 		}
 	}
 	
-	msgsrv onNewPath(int[127] newPath) {
+	msgsrv onNewPath(int[30] newPath) {
 		self.path = newPath;
 		self.curPathIdx = 0;
 	}

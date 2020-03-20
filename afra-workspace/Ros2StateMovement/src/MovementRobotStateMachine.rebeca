@@ -77,9 +77,23 @@ reactiveclass RobotHardware(10) {
 		return x + x*x*x / 3 + 2*x*x*x*x*x/15; 
 	} 
 	
+	double abs(double x) {
+		if(x < 0) {
+			return -x;
+		}
+		
+		return x;
+	}
+	
 	double sqrt(double x) {
-		// taylor series expansion
-		return 1 + (x-1) + (x-1)*(x-1)/2 + (x-1)*(x-1)*(x-1)/6; 
+		double prev = 0;
+		double next = 5;
+		while(abs(prev - next) > 0.1) {
+			prev = next;
+			next = 1/2 * (x / prev + prev);
+		}
+		
+		return next;
 	}
 	
 	double getDistanceToCollision(double dy, double curAngle) {
