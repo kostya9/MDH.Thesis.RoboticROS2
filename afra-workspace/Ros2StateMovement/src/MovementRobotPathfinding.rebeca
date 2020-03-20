@@ -1,5 +1,5 @@
-env int msgDelay = 50;
-env int pathfinderDelay = 99;
+env int msgDelay = 20;
+env int pathfinderDelay = 50;
 env int moveDelay = 200;
 
 env int MAPSIZE = 20;
@@ -12,7 +12,7 @@ env double minAngle = pi / 4;
 env double maxAngle = 3 * pi / 4;
 env double angleIncrement = (maxAngle - minAngle) / lasers;
 env double laserLength = 10;
-env double steps = 20;
+env double steps = 15;
 env double stepLength = laserLength / steps;
 
 env int COLLISION = -1;
@@ -36,6 +36,8 @@ reactiveclass RobotHardware(10) {
 		int rot;
 		boolean moving;
 		
+		int nextRot;
+		
 		// variables for assertion
 		int prevPosX;
 		int prevPosY;
@@ -48,6 +50,8 @@ reactiveclass RobotHardware(10) {
 		moving = true;
 		isFirstState = true;
 		
+		nextRot = rot;
+		
 		setCollisions();
 		laserScanSend();
 		moveActuator() after(moveDelay);
@@ -55,7 +59,7 @@ reactiveclass RobotHardware(10) {
 	
 	// USE THIS METHOD TO SET COLLISIONS ON THE MAP
 	void setCollisions() { 
-		map[0][1] = COLLISION;
+		map[1][0] = COLLISION;
 	}
 	
 	double tan(double angle) {
@@ -77,11 +81,11 @@ reactiveclass RobotHardware(10) {
 	}
 	
 	double sqrt(double x) {
-		double prev = 0;
+		double prev = 4;
 		double next = 5;
 		while(abs(prev - next) > 0.1) {
 			prev = next;
-			next = 1/2 * (x / prev + prev);
+			next = 0.5 * ((x/prev) + prev);
 		}
 		
 		return next;
@@ -92,31 +96,31 @@ reactiveclass RobotHardware(10) {
 		// x = f(x) / k
 		// where k - the tangent of tilt angle
 		double dx = dy / tan(curAngle);
-		double turnedX, turnedY;
+		int turnedX, turnedY;
 				
 		if(rot == NORTH)
 		{
-			turnedX = dx;
-			turnedY = dy;
+			turnedX = (int)dx;
+			turnedY = (int)dy;
 		}
 		else if(rot == EAST)
 		{
-			turnedX = -dy;
-			turnedY = dx;
+			turnedX = (int)dy;
+			turnedY = (int)-dx;
 		}
 		else if(rot == SOUTH)
 		{
-			turnedX = -dx;
-			turnedY = dy;
+			turnedX = (int)-dx;
+			turnedY = (int)dy;
 		}
 		else if (rot == WEST)
 		{
-			turnedX = dy;
-			turnedY = -dx;
+			turnedX = (int)-dy;
+			turnedY = (int)dx;
 		}
 		
-		int yIndx = posY + (int)dy;
-		int xIndx = posX + (int)dx;
+		int yIndx = posY + turnedY;
+		int xIndx = posX + turnedX;
 		
 		// check collision with end of map
 		if ((yIndx >= 20) || (yIndx < 0)) {
@@ -129,7 +133,7 @@ reactiveclass RobotHardware(10) {
 		}
 		
 		if(map[xIndx][yIndx] == COLLISION) {
-			return sqrt(dy * dy + dx * dx);
+			return sqrt((turnedY + 0.5) * (turnedY + 0.5) + (turnedX + 0.5) * (turnedX + 0.5));
 		}
 		
 		return INFINITY;
@@ -150,7 +154,7 @@ reactiveclass RobotHardware(10) {
 		// else
 		//     do nothing
 		double curAngle = minAngle;
-		for(int i = 0; i < lasers; i++) {
+		for(int i = lasers - 1; i >= 0; i--) {
 		
 			// test the cells for collision where f(x) = dy
 			// f(x) - laser ray function
@@ -169,8 +173,13 @@ reactiveclass RobotHardware(10) {
 	
 	// Move the actual robot (change pos)
 	msgsrv moveActuator() {
+		if(nextRot != rot) {
+			// rotating
+			prevRot = rot;
+			rot = nextRot;
+		}
 		// no movement when finished
-		if(moving)
+		else if(moving)
 		{
 			int dx, dy;
 			if(rot == NORTH)
@@ -213,13 +222,11 @@ reactiveclass RobotHardware(10) {
 	}
 	
 	msgsrv turnLeft() {
-		prevRot = rot;
-		rot = (rot - 1) % 4;
+		nextRot = (rot - 1) % 4;
 	}
 	
 	msgsrv turnRight() {
-		prevRot = rot;
-		rot = (rot + 1) % 4;
+		nextRot = (rot + 1) % 4;
 	}
 }
 
@@ -232,7 +239,6 @@ reactiveclass Pathfinder(11)
 	    int targetX;
 	    int targetY;
 	    
-	    double curYaw;
 	    boolean[20][20] map;
 	    int[20][20] parents;
 	    
@@ -253,25 +259,28 @@ reactiveclass Pathfinder(11)
 		self.changed = true;
 	}
 	
-	msgsrv setPosition(int nextxPos, int nextyPos, int rot) {
-		self.xPos = nextxPos;
-		self.yPos = nextyPos;
+	double getYawFromRot(int rot) {
 		if(rot == NORTH)
 		{
-			self.curYaw = pi/2.0;
+			return pi/2.0;
 		}
 		else if(rot == EAST)
 		{
-			self.curYaw = 0;
+			return 0;
 		}
 		else if(rot == SOUTH)
 		{
-			self.curYaw = -pi/2.0;
+			return -pi/2.0;
 		}
 		else if (rot == WEST)
 		{
-			self.curYaw = pi;
+			return pi;
 		}
+	}
+	
+	msgsrv setPosition(int nextxPos, int nextyPos, int rot) {
+		self.xPos = nextxPos;
+		self.yPos = nextyPos;
 	}
 	
 	double distTo(double x, double y, double xTarget, double yTarget) {
@@ -345,11 +354,11 @@ reactiveclass Pathfinder(11)
 	}
 	
 	double cos(double x) {
-		return 1 - x*x/2 + x*x*x*x/24;
+		return 1 - x*x/2 + x*x*x*x/24- x*x*x*x*x*x/720;
 	}
 	
 	double sin(double x) {
-		return 1 - x*x*x/6 + x*x*x*x*x/120;
+		return x - x*x*x/6 + x*x*x*x*x/120- x*x*x*x*x*x*x/5040;
 	}
 	
 	int posToIdx(int x, int y) {
@@ -418,10 +427,6 @@ reactiveclass Pathfinder(11)
 	msgsrv calcPath() {
 		if(changed) {
 			changed = false;
-			changeTimes = changeTimes + 1; 
-			if (changeTimes == 3) {
-				assertion(false);
-			}
 			
 			openList = clearList(openList);
 			closedList = clearList(closedList);
@@ -495,10 +500,11 @@ reactiveclass Pathfinder(11)
 		}
 	}
 	
-	msgsrv addCollision(double distance, double dYaw) {
-		double yaw = self.curYaw + dYaw;
-	    double colTargetX = self.xPos + distance * cos(yaw);
-	    double colTargetY = self.yPos + distance * sin(yaw);
+	msgsrv addCollision(double distance, double dYaw, int posX, int posY, int rot) {
+		double rotYaw = getYawFromRot(rot);
+		double yaw = rotYaw + dYaw - pi / 2;
+	    double colTargetX = posX + distance * cos(yaw);
+	    double colTargetY = posY + distance * sin(yaw);
 	    
 	    int targetXIndex = (int)(colTargetX);
 	    int targetYIndex = (int)(colTargetY);
@@ -509,6 +515,7 @@ reactiveclass Pathfinder(11)
 	       // out of bounds
 	    } else {
 	    	if(!map[targetXIndex][targetYIndex]) {
+	    		//assertion(false, "dist=" + distance + " yaw= " + yaw + " colTargetX=" + colTargetX + " colTargetY=" + colTargetY);
 	    		self.changed = true;
 	    		map[targetXIndex][targetYIndex] = true;
 	    	}
@@ -550,13 +557,14 @@ reactiveclass Robot(10) {
 	// Straightforward algorithm - just follow target, no collision avoidance
 	msgsrv onLaserScan(int posX, int posY, int rot, boolean moving, double[10] laserDistances) {
 		if(!finish) {
-			double curAngle = minAngle;
 			pf.setPosition(posX, posY, rot);
+			
+			double curAngle = minAngle;
 			for(int i = 0; i < 10; i++) {
 				double dist = laserDistances[i];
 				
 				if(dist != INFINITY && dist != 0) {
-					pf.addCollision(dist, curAngle);
+					pf.addCollision(dist, curAngle, posX, posY, rot);
 				}
 				
 				curAngle = curAngle + angleIncrement;
