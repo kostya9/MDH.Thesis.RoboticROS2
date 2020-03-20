@@ -78,6 +78,8 @@ reactiveclass RobotHardware(10) {
 	}
 	
 	double sqrt(double x) {
+		// Taylor series was not precise enough, so
+		// Newton's method was implemented lower
 		double prev = 4;
 		double next = 5;
 		while(abs(prev - next) > 0.1) {
