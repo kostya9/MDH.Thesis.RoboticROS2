@@ -60,6 +60,7 @@ reactiveclass RobotHardware(10) {
 	// USE THIS METHOD TO SET COLLISIONS ON THE MAP
 	void setCollisions() { 
 		map[1][0] = COLLISION;
+		map[1][1] = COLLISION;
 	}
 	
 	double tan(double angle) {
@@ -135,7 +136,7 @@ reactiveclass RobotHardware(10) {
 		}
 		
 		if(map[xIndx][yIndx] == COLLISION) {
-			return sqrt((turnedY + 0.5) * (turnedY + 0.5) + (turnedX + 0.5) * (turnedX + 0.5));
+			return sqrt(dy * dy + dx * dx);
 		}
 		
 		return INFINITY;
@@ -156,7 +157,7 @@ reactiveclass RobotHardware(10) {
 		// else
 		//     do nothing
 		double curAngle = minAngle;
-		for(int i = lasers - 1; i >= 0; i--) {
+		for(int i = 0; i < lasers; i++) {
 		
 			// test the cells for collision where f(x) = dy
 			// f(x) - laser ray function
@@ -510,14 +511,33 @@ reactiveclass Pathfinder(11)
 		}
 	}
 	
+	int round(double x) {
+		double d = x - (int)x;
+		
+		
+		if(x < 0) {
+			if(d < -0.9) {
+				return (int)x - 1;
+			}
+			
+			return (int)x;
+		}
+		
+		if(d > 0.9) {
+			return (int)x + 1;
+		}
+		
+		return (int)x;
+	}
+	
 	msgsrv addCollision(double distance, double dYaw, int posX, int posY, int rot) {
 		double rotYaw = getYawFromRot(rot);
-		double yaw = rotYaw + dYaw - pi / 2;
+		double yaw = rotYaw + dYaw - pi/2;
 	    double colTargetX = posX + distance * cos(yaw);
 	    double colTargetY = posY + distance * sin(yaw);
 	    
-	    int targetXIndex = (int)(colTargetX);
-	    int targetYIndex = (int)(colTargetY);
+	    int targetXIndex = round(colTargetX);
+	    int targetYIndex = round(colTargetY);
 	
 	    if(targetXIndex < 0 || targetXIndex >= MAPSIZE || 
 	        targetYIndex < 0 || targetYIndex >= MAPSIZE) 
