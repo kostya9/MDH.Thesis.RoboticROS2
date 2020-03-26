@@ -251,13 +251,6 @@ reactiveclass Pathfinder(11)
 	    int targetY;
 	    
 	    boolean[20][20] map;
-	    int[20][20] parents;
-	    
-	    int[30] openList;
-	    int[30] closedList;
-	    double[20][20] hs;
-	    double[20][20] gs;
-	    double[20][20] fs;
 	    
 	    boolean changed;
 	    
@@ -384,7 +377,7 @@ reactiveclass Pathfinder(11)
 		return idx % 20;
 	}
 	
-	int idxOfSmallestF() {
+	int idxOfSmallestF(int[30] openList, double[20][20] fs) {
 		int smallestIdx = 0;
 		double smallestF = openList[0];
 		for(int i = 0; i < 127; i++) {
@@ -405,7 +398,7 @@ reactiveclass Pathfinder(11)
 		return smallestIdx;
 	}
 	
-	int[30] generatePathFromTarget() {
+	int[30] generatePathFromTarget(int[20][20] parents) {
 		int[30] path;
 		path = clearList(path);
 		
@@ -439,6 +432,14 @@ reactiveclass Pathfinder(11)
 		if(changed) {
 			changed = false;
 			
+			int[20][20] parents;
+	    
+		    int[30] openList;
+		    int[30] closedList;
+		    double[20][20] hs;
+		    double[20][20] gs;
+		    double[20][20] fs;
+			
 			openList = clearList(openList);
 			closedList = clearList(closedList);
 			
@@ -446,7 +447,7 @@ reactiveclass Pathfinder(11)
 			openList = addToList(openList, curPos);
 			
 			while(size(openList) != 0) {
-				int curOpenListIdx = idxOfSmallestF();
+				int curOpenListIdx = idxOfSmallestF(openList, fs);
 				int curNodeIdx = openList[curOpenListIdx];
 				openList = removeFromList(openList, curOpenListIdx);
 				closedList = addToList(closedList, curNodeIdx);
@@ -454,7 +455,7 @@ reactiveclass Pathfinder(11)
 				int x = idxToX(curNodeIdx);
 				int y = idxToY(curNodeIdx);
 				if(x == targetX && y == targetY) {
-					int[30] path = generatePathFromTarget();
+					int[30] path = generatePathFromTarget(parents);
 					
 					((Robot)sender).onNewPath(path);
 					break;
