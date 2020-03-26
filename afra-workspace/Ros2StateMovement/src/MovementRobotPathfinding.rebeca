@@ -1,6 +1,6 @@
 env int msgDelay = 20;
 env int pathfinderDelay = 50;
-env int moveDelay = 200;
+env int moveDelay = 100;
 
 env int MAPSIZE = 20;
 
@@ -282,7 +282,7 @@ reactiveclass Pathfinder(11)
 		}
 	}
 	
-	msgsrv setPosition(int nextxPos, int nextyPos, int rot) {
+	msgsrv setPosition(int nextxPos, int nextyPos) {
 		self.xPos = nextxPos;
 		self.yPos = nextyPos;
 	}
@@ -588,7 +588,7 @@ reactiveclass Robot(10) {
 	// Straightforward algorithm - just follow target, no collision avoidance
 	msgsrv onLaserScan(int posX, int posY, int rot, boolean moving, double[10] laserDistances) {
 		if(!finish) {
-			pf.setPosition(posX, posY, rot);
+			pf.setPosition(posX, posY);
 			
 			double curAngle = minAngle;
 			for(int i = 0; i < 10; i++) {
