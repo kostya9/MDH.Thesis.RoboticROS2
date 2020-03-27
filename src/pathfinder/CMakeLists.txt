@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(pathfinder)
 
+set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
+
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
@@ -17,7 +19,7 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-
+find_package(PCL REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(gazebo_msgs REQUIRED)
@@ -65,6 +67,7 @@ ament_target_dependencies(${target}
   "pcl_conversions"
   "tf2_geometry_msgs"
   "rcl_interfaces"
+  "pcl"
   )
 
 

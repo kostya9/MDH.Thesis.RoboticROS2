@@ -4,18 +4,20 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/opt/ros/dashing/include"
+                "/opt/ros/dashing/include",
+                "/usr/include/linux",
+                "/usr/include/pcl-1.8"
             ],
+            "compileCommands": "${workspaceFolder}/build/pathfinder/compile_commands.json",
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
             "cStandard": "c11",
             "cppStandard": "c++17",
             "intelliSenseMode": "clang-x64",
             "browse": {
-                "path": [
-                    
-                ]
-            }
+                "path": []
+            },
+            "configurationProvider": "go2sh.cmake-integration"
         }
     ],
     "version": 4

@@ -68,5 +68,6 @@
     "terminal.integrated.rendererType": "canvas",
     "python.autoComplete.extraPaths": [
         "/opt/ros/dashing/lib/python3.6/site-packages"
-    ]
+    ],
+    "cmake.configureOnOpen": true
 }
