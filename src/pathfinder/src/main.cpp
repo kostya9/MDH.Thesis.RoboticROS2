@@ -35,8 +35,7 @@ public:
     _odomSub = this->create_subscription<Odometry>("/myrobot/odom", rclcpp::QoS(10), std::bind(&PathFinder::OnOdom, this, std::placeholders::_1));
     _targetSub = this->create_subscription<Move>("/pathfinder/move", rclcpp::QoS(10), std::bind(&PathFinder::OnMoveCommand, this, std::placeholders::_1));
     _pointCloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("/myrobot/collisions", rclcpp::QoS(10));
-    _state = FINISH;
-    _path = Path();
+    _path = Path(0.5);
     _hasPose = false;
   }
 private:
@@ -48,7 +47,6 @@ private:
   bool _hasPose;
   PoseWithCovariance _curPos;
   Move::SharedPtr _target;
-  int _state;
   PoseWithCovariance _obstacleEnd;
   Path _path;
 
@@ -101,22 +99,19 @@ private:
     _pointCloudPub->publish(pc2_msg);
   }
 
-  double getTargetYaw()
+  double getTargetYaw(int x, int y)
   {
-
-    auto tX = _target->x;
-    auto tY = _target->y;
     auto sY = _curPos.pose.position.y;
     auto sX = _curPos.pose.position.x;
 
     // Vector difference between positions of target and source
-    auto deltaX = tX - sX;
-    auto deltaY = tY - sY;
+    auto deltaX = x - sX;
+    auto deltaY = y - sY;
 
     auto cosYaw = (deltaX) / (std::sqrt(deltaX * deltaX + deltaY * deltaY));
     auto acosYaw = std::acos(cosYaw);
 
-    if(tY >= sY) 
+    if(y >= sY) 
     {
       return acosYaw;
     }
@@ -142,85 +137,6 @@ private:
     auto xDist = std::pow(_curPos.pose.position.x - x, 2);
     auto yDist = std::pow(_curPos.pose.position.y - y, 2);
     return std::sqrt(xDist + yDist);
-  }
-
-  bool IsNextToCollision(const LaserScan::SharedPtr scanInfo, double minDist)
-  {
-    auto total = scanInfo->ranges.size();
-    for(std::size_t i = 0; i < total; i++)
-    {
-      if(scanInfo->ranges.at(i) <= minDist)
-      {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  double GetTurnAngle(const sensor_msgs::msg::LaserScan::SharedPtr scanInfo)
-  {
-    // Find two rays that hit
-    int idxF = -1;
-    int idxS = -1;
-    float dist = FLT_MAX;
-    for (auto i = 1u; i < scanInfo->ranges.size(); ++i) {
-      auto prev = scanInfo->ranges.at(i - 1);
-      auto cur = scanInfo->ranges.at(i);
-      float curDist = (cur + prev) / 2;
-      if(prev > scanInfo->range_min && prev < scanInfo->range_max && prev < OBSTACLE_MOVE_MIN_DIST && 
-        cur > scanInfo->range_min && cur < scanInfo->range_max && cur < OBSTACLE_MOVE_MIN_DIST && 
-        curDist < dist)
-        {
-          idxF = i - 1;
-          idxS = i;
-          dist = curDist;
-        }
-    }
-
-    if(idxF == -1)
-    {
-      return 0;
-    }
-
-    auto a = scanInfo->ranges.at(idxF);
-    auto b = scanInfo->ranges.at(idxS);
-    auto alpha = scanInfo->angle_increment;
-    auto c = std::sqrt(a * a + b * b - 2 * a * b * std::cos(alpha));
-    auto beta = std::asin(a * std::sin(alpha) / c);
-    auto betaComp = M_PI - beta;
-    auto gamma = M_PI - scanInfo->angle_min - idxS * scanInfo->angle_increment;
-    auto angleOfRobot = 2 * M_PI - gamma - betaComp;
-
-    return angleOfRobot;
-  }
-
-  std::string toStateString(int stateInt)
-  {
-    switch(stateInt)
-    {
-      case TARGET: return "TARGET";
-      case FINISH: return "FINISH";
-      case OBSTACLE_MOVE: return "OBSTACLE_MOVE";
-      case OBSTACLE_TURN: return "OBSTACLE_TURN";
-      case FINISH_OBSTACLE_MOVE: return "FINISH_OBSTACLE_MOVE";
-    }
-
-    return "UNKNOWN";
-  }
-
-  void SwitchState(int targetState)
-  {
-    auto stateString = toStateString(_state);
-    auto targetStateString = toStateString(targetState);
-    RCLCPP_INFO(this->get_logger(), "Switching from state {%s} to state {%s}", stateString.c_str(), targetStateString.c_str());
-    _state = targetState;
-  }
-
-  Twist::UniquePtr DoNothing()
-  {
-    auto twist = std::make_unique<Twist>();
-    return twist;
   }
 
   Twist::UniquePtr MakeMoveTurnCommand(float turnAngle)
@@ -263,126 +179,6 @@ private:
       return command;
   }
 
-  Twist::UniquePtr ObstacleTurn(const LaserScan::SharedPtr scanInfo)
-  {
-    auto epsilon = 0.01;
-    auto turn = GetTurnAngle(scanInfo);
-
-    if(std::abs(turn) < epsilon)
-    {
-      SwitchState(OBSTACLE_MOVE);
-      return nullptr;
-    }
-
-    turn = std::copysign(M_PI / 4, turn);
-    return MakeTurnCommand(turn);
-  }
-
-  Twist::UniquePtr GoTarget(const LaserScan::SharedPtr scanInfo)
-  {
-    auto distance = getDistanceTo(_target->x, _target->y);
-    if(distance <= FINISH_DIST)
-    {
-      SwitchState(FINISH);
-      return DoNothing();
-    }
-
-    if(IsNextToCollision(scanInfo, OBSTACLE_MIN_DIST))
-    {
-      SwitchState(OBSTACLE_TURN);
-      return nullptr;
-    }
-
-    auto goalYaw = getYawDiff(getTargetYaw(), getCurrentYaw());
-    if(distance < OBSTACLE_MOVE_MIN_DIST)
-    {
-      double epsilon = 0.01;
-      if(std::abs(goalYaw) < epsilon)
-      {
-        return MakeMoveCommand(MOVEMENT_SPEED);
-      }
-      
-      auto turn = std::copysign(M_PI, goalYaw);
-      return MakeMoveTurnCommand(turn);
-    }
-
-    if(distance > OBSTACLE_MOVE_MIN_DIST && IsNextToCollision(scanInfo, OBSTACLE_MOVE_MIN_DIST))
-    {
-      auto turn = GetTurnAngle(scanInfo);
-      return MakeMoveTurnCommand(turn);
-    }
-
-    
-    return MakeMoveTurnCommand(goalYaw);
-  }
-
-  Twist::UniquePtr ObstacleMove(const LaserScan::SharedPtr scanInfo)
-  {
-    if(IsNextToCollision(scanInfo, OBSTACLE_MIN_DIST))
-    {
-      SwitchState(OBSTACLE_TURN);
-      return nullptr;
-    }
-
-    for (auto i = 0u; i < scanInfo->ranges.size(); ++i) 
-    {
-      auto cur = scanInfo->ranges.at(i);
-      if(cur < OBSTACLE_MOVE_MIN_DIST)
-      {
-        break;
-      }
-
-      _obstacleEnd = _curPos;
-      SwitchState(FINISH_OBSTACLE_MOVE);
-      return nullptr;
-    }
-
-    auto turn = GetTurnAngle(scanInfo);
-    return MakeMoveTurnCommand(turn);
-  }
-
-  Twist::UniquePtr ObstacleEnd()
-  {
-    auto distance = getDistanceTo(_obstacleEnd.pose.position.x, _obstacleEnd.pose.position.y);
-
-    if(distance >= 1)
-    {
-      SwitchState(TARGET);
-      return nullptr;
-    }
-
-    return MakeMoveCommand(MOVEMENT_SPEED);
-  }
-
-  Twist::UniquePtr GetMovementFromState(const LaserScan::SharedPtr scanInfo)
-  {
-    switch (_state)
-    {
-      case TARGET: 
-      {
-        return GoTarget(scanInfo);
-      } break;
-      case OBSTACLE_TURN: 
-      {
-        return ObstacleTurn(scanInfo);
-      } break;
-      case OBSTACLE_MOVE: 
-      {
-        return ObstacleMove(scanInfo);
-      } break;
-      case FINISH_OBSTACLE_MOVE:
-      {
-        return ObstacleEnd();
-      } break;
-      case FINISH: 
-      {
-        return DoNothing();
-      } break;
-    }
-
-    return DoNothing();
-  }
-
   void OnLaserScan(const LaserScan::SharedPtr scanInfo)
   {
     if(!_hasPose) 
@@ -392,7 +188,10 @@ private:
 
     this->UpdateMap(scanInfo);
     this->PublishMap();
-    auto command = GetMovementFromState(scanInfo);
+    auto path = this->_path.GetPathToTarget();
+    auto firstPoint = path->at(0);
+    auto angle = getYawDiff(getCurrentYaw(), getTargetYaw(firstPoint.first, firstPoint.second));
+    auto command = MakeMoveTurnCommand(angle);
 
     if(command != nullptr)
     {
@@ -410,18 +209,10 @@ private:
   void OnMoveCommand(const Move::SharedPtr moveInfo)
   {
     this->_target = moveInfo;
+    this->_path.SetTarget(moveInfo->x, moveInfo->y);
     RCLCPP_INFO(this->get_logger(), "Received Move: %.3f, %.3f", _target->x, _target->y);
-    SwitchState(TARGET);
   }
-
-  static constexpr int TARGET = 0;
-  static constexpr int OBSTACLE_MOVE = 2;
-  static constexpr int OBSTACLE_TURN = 3;
-  static constexpr int FINISH_OBSTACLE_MOVE = 1;
-  static constexpr int FINISH = 4;
-  static constexpr float OBSTACLE_MIN_DIST = 0.5;
-  static constexpr float FINISH_DIST = 0.8;
-  static constexpr float OBSTACLE_MOVE_MIN_DIST = 1.5;
+  
   static constexpr float MOVEMENT_SPEED = 0.06;
 };
 
