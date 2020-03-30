@@ -128,15 +128,15 @@
       <pose frame=''>-0.018109 0.179505 0 0 -0 0</pose>
     </model>
     <state world_name='default'>
-      <sim_time>364 421000000</sim_time>
-      <real_time>136 221593600</real_time>
-      <wall_time>1580125500 932815400</wall_time>
-      <iterations>125086</iterations>
+      <sim_time>723 975000000</sim_time>
+      <real_time>408 677167727</real_time>
+      <wall_time>1585516385 282859736</wall_time>
+      <iterations>359554</iterations>
       <model name='brick_box_3x1x3'>
-        <pose frame=''>-0.018109 0.179505 0 0 -0 0</pose>
+        <pose frame=''>2.1993 3.14234 0 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='chassis'>
-          <pose frame=''>-0.018109 0.179505 1.5 0 -0 0</pose>
+          <pose frame=''>2.1993 3.14234 1.5 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -153,25 +153,25 @@
         </link>
       </model>
       <model name='my_robot'>
-        <pose frame=''>-0.06025 -1.55748 2e-06 2.3e-05 2.2e-05 1.22436</pose>
+        <pose frame=''>0.619563 0.324896 3e-06 2.4e-05 2.9e-05 1.21746</pose>
         <scale>1 1 1</scale>
         <link name='chassis'>
-          <pose frame=''>-0.060247 -1.55748 0.100002 2.3e-05 2.2e-05 1.22436</pose>
-          <velocity>-3e-05 0.00016 -6.4e-05 -0.001612 -0.00033 4e-06</velocity>
-          <acceleration>-0.092145 0.000226 -0.458891 -0.040607 -0.995407 -0.000302</acceleration>
-          <wrench>-0.092145 0.000226 -0.458891 0 -0 0</wrench>
+          <pose frame=''>0.619567 0.324898 0.100003 2.4e-05 2.9e-05 1.21746</pose>
+          <velocity>9.9e-05 0.000267 0.000509 -0.002637 0.001037 2e-06</velocity>
+          <acceleration>0.068061 -0.061238 0.373249 0.645029 0.754314 -0.000372</acceleration>
+          <wrench>0.068061 -0.061238 0.373249 0 -0 0</wrench>
         </link>
         <link name='left_wheel'>
-          <pose frame=''>-0.148568 -1.41928 0.1 1.57077 0.741433 -1.91738</pose>
-          <velocity>-3.5e-05 0.000162 -0.000376 -0.001612 -0.00033 4e-06</velocity>
-          <acceleration>-0.101078 0.004454 -0.707855 -0.040641 -0.995887 -0.000254</acceleration>
-          <wrench>-0.101078 0.004454 -0.707855 0 -0 0</wrench>
+          <pose frame=''>0.5322 0.463705 0.100001 1.57077 0.74133 -1.92428</pose>
+          <velocity>0.000104 0.000264 0.000331 -0.002637 0.001037 1e-06</velocity>
+          <acceleration>0.076217 -0.065655 0.67533 0.645016 0.754803 -0.000428</acceleration>
+          <wrench>0.076217 -0.065655 0.67533 0 -0 0</wrench>
         </link>
         <link name='right_wheel'>
-          <pose frame=''>0.095987 -1.50756 0.100001 -1.57085 -1.11893 1.22454</pose>
-          <velocity>-3.3e-05 0.000161 8e-05 -0.001611 -0.000326 4e-06</velocity>
-          <acceleration>-0.099418 0.001337 0.140844 -0.013673 -0.995182 -0.0003</acceleration>
-          <wrench>-0.099418 0.001337 0.140844 0 -0 0</wrench>
+          <pose frame=''>0.776141 0.373743 0.1 -1.57084 -1.11834 1.21764</pose>
+          <velocity>0.000104 0.000266 -6e-05 -0.002663 0.00104 1e-06</velocity>
+          <acceleration>0.075362 -0.06182 -0.134295 0.618284 0.754752 -0.000398</acceleration>
+          <wrench>0.075362 -0.06182 -0.134295 0 -0 0</wrench>
         </link>
       </model>
       <light name='sun'>
@@ -180,7 +180,7 @@
     </state>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose frame=''>-3.89754 -1.63342 2.52876 0 0.639643 -0.391811</pose>
+        <pose frame=''>-1.66656 -2.95929 2.14374 -0 0.407643 0.880189</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
@@ -444,5 +444,8 @@
       </plugin>
       <pose frame=''>-0.288922 -1.57219 0 0 -0 0</pose>
     </model>
+    <audio>
+      <device>default</device>
+    </audio>
   </world>
 </sdf>

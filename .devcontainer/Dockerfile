@@ -42,11 +42,16 @@ RUN groupadd --gid $USER_GID $USERNAME \
     # Cleanup
     && rm -rf /var/lib/apt/lists/*
 
+RUN pip3 install kivy
+RUN pip3 install pygame
+
 # The entrypoint for the container to source the environment
 # COPY entrypoint.sh /setup/entrypoint.sh
 ENTRYPOINT [ "/setup/entrypoint.sh" ]
 
 # TODO: FIX ignition config
+# ~/.ignition/fuel/config.yaml
+# url: https://fuel.ignitionrobotics.org/
 # https://bitbucket.org/osrf/gazebo/issues/2607/error-restcc-205-during-startup-gazebo
 
 CMD exec /bin/bash -c "trap : TERM INT; sleep infinity & wait"

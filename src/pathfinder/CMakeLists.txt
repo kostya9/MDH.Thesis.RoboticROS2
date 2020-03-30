@@ -19,7 +19,7 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(PCL REQUIRED)
+# find_package(PCL REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(gazebo_msgs REQUIRED)
@@ -67,7 +67,7 @@ ament_target_dependencies(${target}
   "pcl_conversions"
   "tf2_geometry_msgs"
   "rcl_interfaces"
-  "pcl"
+#  "pcl"
   )
 
 

@@ -35,7 +35,8 @@ public:
     _odomSub = this->create_subscription<Odometry>("/myrobot/odom", rclcpp::QoS(10), std::bind(&PathFinder::OnOdom, this, std::placeholders::_1));
     _targetSub = this->create_subscription<Move>("/pathfinder/move", rclcpp::QoS(10), std::bind(&PathFinder::OnMoveCommand, this, std::placeholders::_1));
     _pointCloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("/myrobot/collisions", rclcpp::QoS(10));
-    _path = Path(0.5);
+    _pathPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("/myrobot/path", rclcpp::QoS(10));
+    _path = std::make_unique<Path>(this->get_logger(), 0.5);
     _hasPose = false;
   }
 private:
@@ -44,32 +45,37 @@ private:
   rclcpp::Publisher<Twist>::SharedPtr _velocityPub;
   rclcpp::Subscription<Odometry>::SharedPtr _odomSub;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr _pointCloudPub;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr _pathPub;
   bool _hasPose;
   PoseWithCovariance _curPos;
   Move::SharedPtr _target;
   PoseWithCovariance _obstacleEnd;
-  Path _path;
+  std::unique_ptr<Path> _path;
+  int shakes = 0;
 
-  void UpdateMap(const LaserScan::SharedPtr scanInfo)
+  bool UpdateMap(const LaserScan::SharedPtr scanInfo)
   {
     auto pitch = GetCurrentPitch();
     if(std::abs(pitch) >= (M_PI / 1024)) 
     {
-      return;
+      return false;
     }
 
     auto curAngle = scanInfo->angle_min;
+    bool addedCollision = false;
     for(size_t i = 0; i < scanInfo->ranges.size(); i++) {
       auto d = scanInfo->ranges.at(i);
       auto yaw = curAngle;
 
       if(d > scanInfo->range_min && d < scanInfo->range_max) 
       {
-        _path.AddCollision(d, yaw);
+        addedCollision = _path->AddCollision(d, yaw) || addedCollision; 
       }
 
       curAngle += scanInfo->angle_increment;
     }
+
+    return addedCollision;
   }
 
   double GetCurrentPitch() 
@@ -77,26 +83,33 @@ private:
     auto q = _curPos.pose.orientation;
     return std::asin(-2.0*(q.x*q.z - q.w*q.y));
   }
+
+  void PublishCoordinates(rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher,
+    std::vector<Coordinate> & coordinates, uint8_t g = 0) 
+    {
+      pcl::PointCloud<pcl::PointXYZRGB> cloud;
+      for (auto &&c : coordinates)
+      {
+        auto pt = pcl::PointXYZRGB();
+        pt.x = c.first;
+        pt.y = c.second;
+        pt.z = 0.0;
+        pt.g = g;
+        cloud.points.push_back(pt);
+      }
+
+      auto pc2_msg = sensor_msgs::msg::PointCloud2();
+      pcl::toROSMsg(cloud, pc2_msg);
+      pc2_msg.header.frame_id = "odom_demo";
+      pc2_msg.header.stamp = now();
+      publisher->publish(pc2_msg);
+    }
   
 
   void PublishMap()
   {
-    auto collisions = _path.GetCollisions();
-    pcl::PointCloud<pcl::PointXYZ> cloud;
-    for (auto &&c : collisions)
-    {
-      auto pt = pcl::PointXYZ();
-      pt.x = c.first;
-      pt.y = c.second;
-      pt.z = 0.0;
-      cloud.points.push_back(pt);
-    }
-
-    auto pc2_msg = sensor_msgs::msg::PointCloud2();
-    pcl::toROSMsg(cloud, pc2_msg);
-    pc2_msg.header.frame_id = "odom_demo";
-    pc2_msg.header.stamp = now();
-    _pointCloudPub->publish(pc2_msg);
+    auto collisions = _path->GetCollisions();
+    PublishCoordinates(_pointCloudPub, collisions);
   }
 
   double getTargetYaw(int x, int y)
@@ -142,19 +155,18 @@ private:
   Twist::UniquePtr MakeMoveTurnCommand(float turnAngle)
   {
       auto epsilon = 0.01;
-      auto vectorLiner = Vector3();
+      auto vectorLinear = Vector3();
       auto vectorAngular = Vector3();
-      vectorLiner.x = MOVEMENT_SPEED;
+      vectorLinear.x = MOVEMENT_SPEED;
       if(std::abs(turnAngle) > epsilon)
       {
         auto angularSpeed = 0.01 * turnAngle;
-        vectorAngular.z = angularSpeed;
-        vectorLiner.x = MOVEMENT_SPEED; 
+        vectorAngular.z = turnAngle * angular_k_;
+        vectorLinear.x = linear_k_ / fabs(turnAngle);
       }
-      
 
       auto command = std::make_unique<Twist>();
-      command->linear = vectorLiner;
+      command->linear = vectorLinear;
       command->angular = vectorAngular;
       return command;
   }
@@ -186,12 +198,54 @@ private:
       return;
     }
 
-    this->UpdateMap(scanInfo);
-    this->PublishMap();
-    auto path = this->_path.GetPathToTarget();
-    auto firstPoint = path->at(0);
-    auto angle = getYawDiff(getCurrentYaw(), getTargetYaw(firstPoint.first, firstPoint.second));
-    auto command = MakeMoveTurnCommand(angle);
+    if(this->UpdateMap(scanInfo))
+    {
+      this->PublishMap();
+    }
+
+    if(_target == nullptr)
+    {
+      return;
+    }
+
+    auto path = this->_path->GetPathToTarget();
+
+    Twist::UniquePtr command = nullptr;
+    auto pitch = GetCurrentPitch();
+    if(std::abs(pitch) >= (M_PI / 128)) // shaky robot 
+    {
+      if(shakes < 1024) {
+        shakes++;
+      }
+    } 
+    else if(shakes > 0)
+    {
+      shakes--;
+    } 
+
+    if(shakes > 512) // stabilizing shakiness 
+    {
+      command = MakeMoveCommand(0);
+    }
+    else if(path->size() > 0) // normal behavior
+    {
+      PublishCoordinates(_pathPub, *path, 255);
+      auto firstPoint = path->at(0);
+
+      auto angle = -getYawDiff(getCurrentYaw(), getTargetYaw(firstPoint.first, firstPoint.second));
+      RCLCPP_INFO(this->get_logger(), "My pos: %.3f, %.3f; Next point: %.3f, %.3f; angle between: %.3f", _curPos.pose.position.x, _curPos.pose.position.y, firstPoint.first, firstPoint.second, angle);
+
+      if(fabs(angle) > M_PI / 4) {
+        auto turnSpeed = copysign(M_PI / 4, angle);
+        command = MakeTurnCommand(turnSpeed);
+      } else {
+        command = MakeMoveTurnCommand(angle);
+      }
+    }
+    else // nowhere to go 
+    {
+      command = MakeMoveCommand(0);
+    }
 
     if(command != nullptr)
     {
@@ -202,18 +256,24 @@ private:
   void OnOdom(Odometry::SharedPtr response) 
   {
     this->_curPos = response->pose;
-    _path.SetPosition(_curPos.pose.position.x, _curPos.pose.position.y, getCurrentYaw());
+    _path->SetPosition(_curPos.pose.position.x, _curPos.pose.position.y, getCurrentYaw());
     _hasPose = true;
   }
 
   void OnMoveCommand(const Move::SharedPtr moveInfo)
   {
     this->_target = moveInfo;
-    this->_path.SetTarget(moveInfo->x, moveInfo->y);
+    this->_path->SetTarget(moveInfo->x, moveInfo->y);
     RCLCPP_INFO(this->get_logger(), "Received Move: %.3f, %.3f", _target->x, _target->y);
   }
   
   static constexpr float MOVEMENT_SPEED = 0.06;
+    /// \brief Scale linear velocity, chosen by trial and error
+  double linear_k_ = 0.01;
+
+  /// \brief Scale angular velocity, chosen by trial and error
+  double angular_k_ = 0.06;
+
 };
 
 // RCLCPP_COMPONENTS_REGISTER_NODE(PathFinder)

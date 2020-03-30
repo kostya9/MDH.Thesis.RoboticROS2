@@ -1,9 +1,10 @@
 #include <limits>
 #include <cmath>
 #include <vector>
+#include <rclcpp/rclcpp.hpp>
 
 #define MAP_DISTANCE 10
-#define SQUARES_PER_METER 100
+#define SQUARES_PER_METER 5
 #define SQUARES MAP_DISTANCE * SQUARES_PER_METER
 
 using Coordinate = std::pair<double, double>;
@@ -18,33 +19,18 @@ private:
     double robotWidth;
     bool changed;
     bool map[SQUARES][SQUARES];
-    std::shared_ptr<std::vector<Coordinate>> prevPath;
+    rclcpp::Logger logger;
+    std::shared_ptr<std::vector<CoordinateInternal>> prevPath;
 public:
-    Path(double robotWidth = 0.5);
+    Path(rclcpp::Logger logger, double robotWidth = 0.5);
     void SetTarget(int targetX, int targetY);
-    void AddCollision(double distance, double dYaw);
+    bool AddCollision(double distance, double dYaw);
     void SetPosition(double x, double y, double curYaw);
     std::shared_ptr<std::vector<Coordinate>> GetPathToTarget();
-
-    std::vector<std::pair<double, double>> GetCollisions() 
-    {
-        std::vector<std::pair<double, double>> collisions;
-        for(auto i = 0; i < SQUARES; i++) 
-        {
-            for(auto j = 0; j < SQUARES; j++) 
-            {
-                if(map[i][j]) {
-                    auto x = i / (double)SQUARES_PER_METER;
-                    auto y = j / (double)SQUARES_PER_METER;
-                    collisions.push_back(std::pair<double, double>(x, y));
-                }
-            }   
-        }
-        return collisions;
-    }
+    std::vector<std::pair<double, double>> GetCollisions();
 };
 
-Path::Path(double robotWidth = 0.5)
+Path::Path(rclcpp::Logger logger, double robotWidth) : logger(logger)
 {
     this->robotWidth = robotWidth;
     for(auto i = 0; i < SQUARES; i++) 
@@ -54,54 +40,100 @@ Path::Path(double robotWidth = 0.5)
             map[i][j] = false;
         }   
     }
-    this->prevPath = std::make_shared<std::vector<Coordinate>>();
+    this->prevPath = std::make_shared<std::vector<CoordinateInternal>>();
+}
+
+CoordinateInternal ToInternal(Coordinate ex)
+{
+    return std::make_pair((int)(ex.first * SQUARES_PER_METER), (int)(ex.second * SQUARES_PER_METER));
+}
+
+Coordinate FromInternal(CoordinateInternal in)
+{
+    return std::make_pair(in.first / (double)SQUARES_PER_METER, in.second / (double)SQUARES_PER_METER);
+}
+
+std::vector<std::pair<double, double>> Path::GetCollisions() 
+{
+    std::vector<std::pair<double, double>> collisions;
+    for(auto i = 0; i < SQUARES; i++) 
+    {
+        for(auto j = 0; j < SQUARES; j++) 
+        {
+            if(map[i][j]) {
+                auto external = FromInternal(std::pair<double, double>(i, j));
+                collisions.push_back(external);
+            }
+        }   
+    }
+    return collisions;
+}
+
+double DistTo(CoordinateInternal pos, CoordinateInternal target) {
+    double dy = pos.second - target.second;
+    double dx = pos.first - target.first;
+    return sqrt(dy * dy + dx * dx);
+}
+
+double AStarDist(CoordinateInternal pos, CoordinateInternal target) {
+    double dy = pos.second - target.second;
+    double dx = pos.first - target.first;
+    return dy * dy + dx * dx;
+}
+
+void AdvancePath(std::shared_ptr<std::vector<CoordinateInternal>> path, CoordinateInternal curPos)
+{
+    if(path->size() > 0)
+    {
+        auto first = path->at(0);
+        while(DistTo(first, curPos) <= SQUARES_PER_METER)
+        {
+            path->erase(path->begin());
+            first = path->at(0);
+        }
+    }
 }
 
 void Path::SetPosition(double x, double y, double curYaw) 
 {
     this->curPos = ToInternal(std::make_pair(x, y));
     this->curYaw = curYaw;
-
-    if(prevPath->size() > 0)
-    {
-        auto first = prevPath->at(0);
-        while(DistTo(first, curPos) < 0.1)
-        {
-            prevPath->erase(prevPath->begin());
-            first = prevPath->at(0);
-        }
-    }
+    AdvancePath(prevPath, curPos);
 }
 
-void Path::AddCollision(double distance, double dYaw) 
+bool Path::AddCollision(double distance, double dYaw) 
 {
     auto yaw = curYaw + dYaw;
-    auto targetX = this->curPos.first + distance * cos(yaw);
-    auto targetY = this->curPos.second + distance * sin(yaw);
+    auto curPosEx = FromInternal(curPos);
+    auto targetX = curPosEx.first + distance * cos(yaw);
+    auto targetY = curPosEx.second + distance * sin(yaw);
 
     auto internal = ToInternal(std::make_pair(targetX, targetY));
 
-    if(internal.first < 0 || internal.first >= SQUARES || 
-        internal.second < 0 || internal.second >= SQUARES) 
+    bool addedCollision = false;
+    // Assume that +- robotWidth around collision is inacessible too
+    for (int dx = -robotWidth * SQUARES_PER_METER; dx < robotWidth * SQUARES_PER_METER; dx++)
     {
-        return;
+        for (int dy = -robotWidth * SQUARES_PER_METER; dy < robotWidth * SQUARES_PER_METER; dy++)
+        {
+            int x = internal.first + dx;
+            int y = internal.second + dy;
+            if(x < 0 || x >= SQUARES || 
+                y < 0 || y >= SQUARES) 
+            {
+                continue;
+            }
+
+            if(!map[x][y])
+            {
+                this->map[x][y] = true;
+                this->changed = true;
+                addedCollision = true;
+            }
+        }
     }
 
-    if(!map[internal.first][internal.second])
-    {
-        this->map[internal.first][internal.second] = true;
-        this->changed = true;
-    }
-}
-
-CoordinateInternal ToInternal(Coordinate ex)
-{
-    return std::make_pair(ex.first * SQUARES_PER_METER, ex.second * SQUARES_PER_METER);
-}
-
-Coordinate FromInternal(CoordinateInternal in)
-{
-    return std::make_pair(in.first / SQUARES_PER_METER, in.second / SQUARES_PER_METER);
+    return addedCollision;
 }
 
 void Path::SetTarget(int targetX, int targetY)
@@ -141,9 +173,9 @@ int IdxOfSmallestF(std::vector<std::shared_ptr<Node>> & openList)
     return smallestIdx;
 }
 
-std::shared_ptr<std::vector<Coordinate>> GeneratePathFromParents(std::shared_ptr<Node> target)
+std::shared_ptr<std::vector<CoordinateInternal>> GeneratePathFromParents(std::shared_ptr<Node> target)
 {
-    std::shared_ptr<std::vector<Coordinate>> path = std::make_shared<std::vector<Coordinate>>();
+    std::shared_ptr<std::vector<CoordinateInternal>> path = std::make_shared<std::vector<CoordinateInternal>>();
     
     std::shared_ptr<Node> parent = target;
     while(true) {
@@ -155,6 +187,8 @@ std::shared_ptr<std::vector<Coordinate>> GeneratePathFromParents(std::shared_ptr
         path->insert(path->begin(), parent->pos);    
         parent = parent->parent;
     }
+
+    path->erase(path->begin());
     
     return path;
 }
@@ -174,18 +208,24 @@ std::shared_ptr<Node> FindEqualPos(std::vector<std::shared_ptr<Node>>& list, Coo
     return nullptr;
 }
 
-double DistTo(CoordinateInternal pos, CoordinateInternal target) {
-    double dy = pos.second - target.second;
-    double dx = pos.first - target.first;
-    return dy * dy + dx * dx;
+std::shared_ptr<std::vector<Coordinate>> FromInternalPath(std::shared_ptr<std::vector<CoordinateInternal>> inPath)
+{
+    std::vector<Coordinate> exPath;
+    std::transform(inPath->begin(), inPath->end(),
+                   std::back_inserter(exPath),
+                   [](const CoordinateInternal& elem) { return FromInternal(elem); });
+
+    return std::make_shared<std::vector<Coordinate>>(exPath);
 }
 
 std::shared_ptr<std::vector<Coordinate>> Path::GetPathToTarget()
 {
     if(!this->changed)
     {
-        return prevPath;
+        return FromInternalPath(prevPath);
     }
+
+    RCLCPP_INFO(logger, "Calculating new path");
 
     this->changed = false;
 
@@ -204,10 +244,12 @@ std::shared_ptr<std::vector<Coordinate>> Path::GetPathToTarget()
         int y = curNode->pos.second;
         if(x == targetPos.first && y == targetPos.second) {
             auto path = GeneratePathFromParents(curNode);
+            AdvancePath(path, curPos);
 
             this->prevPath = path;
-            
-            return path;
+
+            RCLCPP_INFO(logger, "Done calculating new path");
+            return FromInternalPath(prevPath);
         }
         
         // for each neighbor
@@ -216,7 +258,7 @@ std::shared_ptr<std::vector<Coordinate>> Path::GetPathToTarget()
                 
                 // IGNORE DIAGONALS
                 // TODO: HANDLE DIAGONALS
-                if(dx + dy != 1 && dx + dy != -1) {
+                if(dx == 0 && dy == 0) {
                     continue;
                 }
                 
@@ -239,8 +281,8 @@ std::shared_ptr<std::vector<Coordinate>> Path::GetPathToTarget()
                     continue;
                 }
                 
-                double g = curNode->g + 1; // TODO: handle diagonals
-                double h = DistTo(neighborPos, targetPos);
+                double g = curNode->g + sqrt(dx * dx + dy * dy); // TODO: handle diagonals
+                double h = AStarDist(neighborPos, targetPos);
                 double f = g + h;
                 
                 auto alreadyInOpenList = FindEqualPos(openList, neighborPos);
@@ -260,4 +302,6 @@ std::shared_ptr<std::vector<Coordinate>> Path::GetPathToTarget()
             }
         }
     }
+
+    RCLCPP_ERROR(logger ,"Could not build path");
 }
