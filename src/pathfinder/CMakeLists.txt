@@ -31,6 +31,7 @@ find_package(pcl_conversions REQUIRED)
 
 set(msg_files
   "msg/Move.msg"
+  "msg/Rotate.msg"
 )
 
 rosidl_generate_interfaces(pathfinder

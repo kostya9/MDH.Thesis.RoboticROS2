@@ -83,14 +83,21 @@ double AStarDist(CoordinateInternal pos, CoordinateInternal target) {
 
 void AdvancePath(std::shared_ptr<std::vector<CoordinateInternal>> path, CoordinateInternal curPos)
 {
-    if(path->size() > 0)
+    while(true)
     {
+        if(path->size() == 0)
+        {
+            return;
+        }
+
         auto first = path->at(0);
-        while(DistTo(first, curPos) <= SQUARES_PER_METER)
+        if(DistTo(first, curPos) <= SQUARES_PER_METER)
         {
             path->erase(path->begin());
-            first = path->at(0);
+            continue;
         }
+        
+        return;
     }
 }
 
