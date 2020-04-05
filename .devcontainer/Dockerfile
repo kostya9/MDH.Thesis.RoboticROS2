@@ -1,13 +1,7 @@
 # This is the development environment
 FROM athackst/ros2:eloquent-dev
 
-# Uncomment this line and add custom packages and dependencies you want to install here.
-# sudo apt-get update && sudo apt-get install -y \
-# put dependent packages here
-# && rm -rf /var/lib/apt/lists/*
-
 # install gazebo
-# RUN curl -sSL http://get.gazebosim.org | sh
 RUN sudo apt-get update
 RUN sudo apt install -y ros-eloquent-gazebo-ros-pkgs
 
@@ -16,12 +10,10 @@ RUN sudo apt install -y libpcl-dev
 RUN sudo apt install -y ros-eloquent-pcl-conversions
 
 # install rviz2
-# RUN sudo apt update && sudo apt install curl gnupg2 lsb-release
-# RUN curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add -
-# RUN sudo sh -c 'echo "deb http://packages.ros.org/ros2/ubuntu `lsb_release -cs` main" > /etc/apt/sources.list.d/ros2-latest.list'
-# RUN sudo apt update
-# RUN sudo apt install -y ros-dashing-desktop 
 RUN sudo apt install -y ros-eloquent-rviz2
+
+# Install python UI libs
+RUN pip3 install kivy pygame
 
 # This Dockerfile adds a non-root 'vscode' user with sudo access. However, for Linux,
 # this user's GID/UID must match your local user UID/GID to avoid permission issues
@@ -42,8 +34,6 @@ RUN groupadd --gid $USER_GID $USERNAME \
     # Cleanup
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install kivy
-RUN pip3 install pygame
 
 # The entrypoint for the container to source the environment
 # COPY entrypoint.sh /setup/entrypoint.sh
