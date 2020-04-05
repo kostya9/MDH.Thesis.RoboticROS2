@@ -12,6 +12,8 @@ def generate_launch_description():
         "{'name':",
         LaunchConfiguration("robot_name"),
         ", 'xml': " + json.encoder.py_encode_basestring(entity_xml),
+        ", 'robot_namespace': ",
+        LaunchConfiguration('robot_name'),
         ", 'initial_pose': {'position': { 'x':",
         LaunchConfiguration('init_pose_x'),
         ",'y':",

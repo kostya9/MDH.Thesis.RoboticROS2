@@ -15,10 +15,9 @@ def generate_launch_description():
                 ("verbose", "true")
             ]),
         launch.actions.GroupAction([
-            launch_ros.actions.PushRosNamespace("robot-0"),
             launch.actions.IncludeLaunchDescription(
             launch.launch_description_sources.PythonLaunchDescriptionSource('./onerobot.launch.py'), launch_arguments=[
-                ("robot_name", "robot-0"),
+                ("robot_name", "robot_0"),
                 ("init_pose_x", "-12.0"),
                 ("init_pose_y", "-12.0"),
                 ("init_pose_z", "0")
