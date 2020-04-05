@@ -71,7 +71,7 @@
         <update_rate>100.0</update_rate>
         <plugin name="laser" filename="libgazebo_ros_ray_sensor.so">
           <ros>
-            <namespace>/myrobot</namespace>
+            <!--<namespace>/myrobot</namespace>-->
             <remapping>~/out:=laser_scan</remapping>
           </ros>
           <output_type>sensor_msgs/LaserScan</output_type>
@@ -140,9 +140,10 @@
       </joint>
 
       <plugin name='diff_drive' filename='libgazebo_ros_diff_drive.so'>
-
+      ¨
+      
       <ros>
-        <namespace>/myrobot</namespace>
+        <!--<namespace>/myrobot</namespace>-->
       </ros>
 
       <!-- wheels -->

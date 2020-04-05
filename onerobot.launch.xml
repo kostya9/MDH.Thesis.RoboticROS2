@@ -1,0 +1,15 @@
+<launch>
+    <arg name="robot_name"/>
+    <arg name="init_pose_x"/>
+    <arg name="init_pose_y"/>
+    <arg name="init_pose_z"/>
+    <!-- icreate robot model -->
+    <node name="create_model" pkg="gazebo_ros" exec="spawn_model">
+        <param name="x" value="$(var init_pose_x)"/>
+        <param name="y" value="$(var init_pose_y)"/>
+        <param name="z" value="$(var init_pose_z)"/>
+        <param name="file" value="./models/my_robot/model.sdf"/>
+        <param name="sdf" />
+        <param name="model" value="$(arg robot_name)"/>
+    </node>
+</launch>
