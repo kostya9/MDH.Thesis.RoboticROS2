@@ -4,7 +4,6 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/opt/ros/dashing/include",
                 "/usr/include/linux",
                 "/usr/include/pcl-1.8"
             ],

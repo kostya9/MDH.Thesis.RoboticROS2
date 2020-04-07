@@ -31,14 +31,14 @@ public:
   {
     auto qos = rclcpp::QoS(rclcpp::SensorDataQoS());
     _laserSub = this->create_subscription<sensor_msgs::msg::LaserScan>(
-      "/myrobot/laser/out", qos, std::bind(&PathFinder::OnLaserScan, this, std::placeholders::_1));
-    _velocityPub = this->create_publisher<Twist>("/myrobot/cmd_vel", rclcpp::QoS(10));
-    _odomSub = this->create_subscription<Odometry>("/myrobot/odom", rclcpp::QoS(10), std::bind(&PathFinder::OnOdom, this, std::placeholders::_1));
-    _targetSub = this->create_subscription<Move>("/pathfinder/move", rclcpp::QoS(10), std::bind(&PathFinder::OnMoveCommand, this, std::placeholders::_1));
-    _rotateSub = this->create_subscription<Rotate>("/pathfinder/rotate", rclcpp::QoS(10), std::bind(&PathFinder::OnRotateCommand, this, std::placeholders::_1));
-    _pointCloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("/myrobot/collisions", rclcpp::QoS(10));
-    _pathPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("/myrobot/path", rclcpp::QoS(10));
-    _path = std::make_unique<Path>(this->get_logger(), 0.25);
+      "laser_scan", qos, std::bind(&PathFinder::OnLaserScan, this, std::placeholders::_1));
+    _velocityPub = this->create_publisher<Twist>("cmd_vel", rclcpp::QoS(10));
+    _odomSub = this->create_subscription<Odometry>("odom", rclcpp::QoS(10), std::bind(&PathFinder::OnOdom, this, std::placeholders::_1));
+    _targetSub = this->create_subscription<Move>("move", rclcpp::QoS(10), std::bind(&PathFinder::OnMoveCommand, this, std::placeholders::_1));
+    _rotateSub = this->create_subscription<Rotate>("rotate", rclcpp::QoS(10), std::bind(&PathFinder::OnRotateCommand, this, std::placeholders::_1));
+    _pointCloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("collisions", rclcpp::QoS(10));
+    _pathPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("path", rclcpp::QoS(10));
+    _path = std::make_unique<Path>(this->get_logger(), 0.75);
     _hasPose = false;
   }
 private:
@@ -220,12 +220,16 @@ private:
     }
 
     auto path = this->_path->GetPathToTarget();
+    if(path == nullptr)
+    {
+      return MakeMoveCommand(0); 
+    }
 
     Twist::UniquePtr command = nullptr;
     auto pitch = GetCurrentPitch();
     if(std::abs(pitch) >= (M_PI / 128)) // shaky robot 
     {
-      if(shakes < 1024) {
+      if(shakes < 2048) {
         shakes++;
       }
     } 

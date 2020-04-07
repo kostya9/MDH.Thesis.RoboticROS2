@@ -3,8 +3,8 @@
 #include <vector>
 #include <rclcpp/rclcpp.hpp>
 
-#define MAP_DISTANCE 10
-#define SQUARES_PER_METER 5
+#define MAP_DISTANCE 20
+#define SQUARES_PER_METER 10
 #define SQUARES MAP_DISTANCE * SQUARES_PER_METER
 
 using Coordinate = std::pair<double, double>;
@@ -91,7 +91,7 @@ void AdvancePath(std::shared_ptr<std::vector<CoordinateInternal>> path, Coordina
         }
 
         auto first = path->at(0);
-        if(DistTo(first, curPos) <= SQUARES_PER_METER)
+        if(DistTo(first, curPos) <= SQUARES_PER_METER / 2)
         {
             path->erase(path->begin());
             continue;
@@ -311,4 +311,6 @@ std::shared_ptr<std::vector<Coordinate>> Path::GetPathToTarget()
     }
 
     RCLCPP_ERROR(logger ,"Could not build path");
+
+    return nullptr;
 }
