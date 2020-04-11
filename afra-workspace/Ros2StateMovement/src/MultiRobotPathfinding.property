@@ -1,0 +1,21 @@
+property{
+	define {
+		isOnTargetPosition2 = rh2.posX == r2.targetX && rh2.posY == r2.targetY;
+		finish2 = r2.finish;
+		hasMoved2 = rh2.rot != rh2.prevRot || rh2.posX != rh2.prevPosX || rh2.posY != rh2.prevPosY;
+		isFirstState2 = rh2.isFirstState;
+		
+		isOnTargetPosition1 = rh1.posX == r1.targetX && rh1.posY == r1.targetY;
+		finish1 = r1.finish;
+		hasMoved1 = rh1.rot != rh1.prevRot || rh1.posX != rh1.prevPosX || rh1.posY != rh1.prevPosY;
+		isFirstState1 = rh1.isFirstState;
+	}
+
+	Assertion {
+		isRotatingOrMovingWhenNotFinished1: finish1 || isFirstState1 || (!finish1 && hasMoved1);
+		isOnTargetPositionWhenFinished1: !finish1 || (finish1 && isOnTargetPosition1);
+		
+		isRotatingOrMovingWhenNotFinished2: finish2 || isFirstState2 || (!finish2 && hasMoved2);
+		isOnTargetPositionWhenFinished2: !finish2 || (finish2 && isOnTargetPosition2);
+	}
+}

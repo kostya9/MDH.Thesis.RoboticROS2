@@ -2,6 +2,8 @@ env int msgDelay = 20;
 env int pathfinderDelay = 50;
 env int moveDelay = 100;
 
+env int MAPSIZE = 20;
+
 env double laserDist = 3;
 env double INFINITY = 9999;
 env int lasers = 10;
@@ -48,118 +50,8 @@ reactiveclass Map(15) {
 		map[xTo][yTo] = COLLISION;
 	}
 	
-	
-	double tan(double angle) {
-		if(angle > (pi / 2)) {
-			angle = angle - pi;
-		}
-		
-		double x = angle;
-		// taylor series expansion
-		return x + x*x*x / 3 + 2*x*x*x*x*x/15; 
-	}
-	
-	double abs(double x) {
-		if(x < 0) {
-			return -x;
-		}
-		
-		return x;
-	}
-	
-	double sqrt(double x) {
-		// Taylor series was not precise enough, so
-		// Newton's method was implemented lower
-		double prev = 4;
-		double next = 5;
-		while(abs(prev - next) > 0.1) {
-			prev = next;
-			next = 0.5 * ((x/prev) + prev);
-		}
-		
-		return next;
-	}
-	
-	double getDistanceToCollision(int posX, int posY, int rot, double dy, double curAngle) {
-		// f(x) = kx
-		// x = f(x) / k
-		// where k - the tangent of tilt angle
-		double dx = dy / tan(curAngle);
-		int turnedX, turnedY;
-				
-		if(rot == NORTH)
-		{
-			turnedX = (int)dx;
-			turnedY = (int)dy;
-		}
-		else if(rot == EAST)
-		{
-			turnedX = (int)dy;
-			turnedY = (int)-dx;
-		}
-		else if(rot == SOUTH)
-		{
-			turnedX = (int)-dx;
-			turnedY = (int)dy;
-		}
-		else if (rot == WEST)
-		{
-			turnedX = (int)-dy;
-			turnedY = (int)dx;
-		}
-		
-		int yIndx = posY + turnedY;
-		int xIndx = posX + turnedX;
-		
-		// check collision with end of map
-		if ((yIndx >= 20) || (yIndx < 0)) {
-			return 0;
-		}
-		
-		// check collision with end of map
-		if((xIndx >= 20) || (xIndx < 0)) {
-			return 0;
-		}
-		
-		if(xIndx == posX && yIndx == posY) {
-			return INFINITY;
-		}
-		
-		if(map[xIndx][yIndx] == COLLISION) {
-			return sqrt(dy * dy + dx * dx);
-		}
-		
-		return INFINITY;
-	}
-	
-	// Send laser data to robot software
-	msgsrv laserScanSend(int xPos, int yPos, int rot) {
-		double[10] dists;
-		// init array
-		for(int i = 0; i < lasers; i++) {
-			dists[i] = INFINITY;
-		}
-
-		// for each laser 
-		// go through distances from 0 to laserLength
-		// and if there is collision (and it is the first collision) 
-		//     write the distance to it
-		// else
-		//     do nothing
-		double curAngle = minAngle;
-		for(int i = 0; i < lasers; i++) {
-		
-			// test the cells for collision where f(x) = dy
-			// f(x) - laser ray function
-			for (double dy = 0; dy <= laserLength; dy += stepLength) {
-				if(dists[i] == INFINITY) {
-					dists[i] = getDistanceToCollision(xPos, yPos, rot, dy, curAngle);
-				}
-			}
-			curAngle = curAngle + angleIncrement;
-		}
-		
-		((RobotHardware)sender).onLaserScan(dists);
+	msgsrv onTick() {
+		((RobotHardware)sender).laserScanSend(map);
 	}
 	
 	msgsrv setInitialPosition(int x, int y)
@@ -220,17 +112,121 @@ reactiveclass RobotHardware(10) {
 	}
 	
 	msgsrv queryMapForSend() {
-		mapRebec.laserScanSend(posX, posY, rot);
-		
+		mapRebec.onTick();
 		queryMapForSend() after(msgDelay);
-	}
-	
-	msgsrv onLaserScan(double[10] dists) {
-		robot.onLaserScan(posX, posY, rot, moving, dists);
 	}
 	
 	void initMap() {
 		mapRebec.setInitialPosition(posX, posY);
+	}
+	
+	double tan(double angle) {
+		if(angle > (pi / 2)) {
+			angle = angle - pi;
+		}
+		
+		double x = angle;
+		// taylor series expansion
+		return x + x*x*x / 3 + 2*x*x*x*x*x/15; 
+	}
+	
+	double abs(double x) {
+		if(x < 0) {
+			return -x;
+		}
+		
+		return x;
+	}
+	
+	double sqrt(double x) {
+		// Taylor series was not precise enough, so
+		// Newton's method was implemented lower
+		double prev = 4;
+		double next = 5;
+		while(abs(prev - next) > 0.1) {
+			prev = next;
+			next = 0.5 * ((x/prev) + prev);
+		}
+		
+		return next;
+	}
+	
+	double getDistanceToCollision(int[20][20] map, double dy, double curAngle) {
+		// f(x) = kx
+		// x = f(x) / k
+		// where k - the tangent of tilt angle
+		double dx = dy / tan(curAngle);
+		int turnedX, turnedY;
+				
+		if(rot == NORTH)
+		{
+			turnedX = (int)dx;
+			turnedY = (int)dy;
+		}
+		else if(rot == EAST)
+		{
+			turnedX = (int)dy;
+			turnedY = (int)-dx;
+		}
+		else if(rot == SOUTH)
+		{
+			turnedX = (int)-dx;
+			turnedY = (int)dy;
+		}
+		else if (rot == WEST)
+		{
+			turnedX = (int)-dy;
+			turnedY = (int)dx;
+		}
+		
+		int yIndx = posY + turnedY;
+		int xIndx = posX + turnedX;
+		
+		// check collision with end of map
+		if ((yIndx >= 20) || (yIndx < 0)) {
+			return 0;
+		}
+		
+		// check collision with end of map
+		if((xIndx >= 20) || (xIndx < 0)) {
+			return 0;
+		}
+		
+		if(map[xIndx][yIndx] == COLLISION) {
+			return sqrt(dy * dy + dx * dx);
+		}
+		
+		return INFINITY;
+	}
+	
+	// Send laser data to robot software
+	msgsrv laserScanSend(int[20][20] map) {
+		double[10] dists;
+		// init array
+		for(int i = 0; i < lasers; i++) {
+			dists[i] = INFINITY;
+		}
+
+		// for each laser 
+		// go through distances from 0 to laserLength
+		// and if there is collision (and it is the first collision) 
+		//     write the distance to it
+		// else
+		//     do nothing
+		double curAngle = minAngle;
+		for(int i = 0; i < lasers; i++) {
+		
+			// test the cells for collision where f(x) = dy
+			// f(x) - laser ray function
+			for (double dy = 0; dy <= laserLength; dy += stepLength) {
+				if(dists[i] == INFINITY) {
+					dists[i] = getDistanceToCollision(map, dy, curAngle);
+				}
+			}
+			curAngle = curAngle + angleIncrement;
+		}
+		
+		robot.onLaserScan(posX, posY, rot, moving, dists);
 	}
 	
 	// Move the actual robot (change pos)
@@ -302,7 +298,7 @@ reactiveclass RobotHardware(10) {
 	}
 }
 
-reactiveclass Pathfinder(15)
+reactiveclass Pathfinder(50)
 {
 	statevars {
 		int xPos;
@@ -601,8 +597,8 @@ reactiveclass Pathfinder(15)
 	    int targetXIndex = round(colTargetX);
 	    int targetYIndex = round(colTargetY);
 	
-	    if(targetXIndex < 0 || targetXIndex >= 20 || 
-	        targetYIndex < 0 || targetYIndex >= 20) 
+	    if(targetXIndex < 0 || targetXIndex >= MAPSIZE || 
+	        targetYIndex < 0 || targetYIndex >= MAPSIZE) 
 	    {
 	       // out of bounds
 	    } else {
@@ -728,7 +724,11 @@ reactiveclass Robot(10) {
 main {
 	Map map():();
 	
-	Pathfinder pf():();
-	Robot r(rh, pf):((int)5, (int)2);
-	RobotHardware rh(r, map):(0, 0, NORTH);
+	Pathfinder pf1():();
+	Robot r1(rh1, pf1):((int)7, (int)0);
+	RobotHardware rh1(r1, map):(1, 0, EAST);
+	
+	Pathfinder pf2():();
+	Robot r2(rh2, pf2):((int)0, (int)0);
+	RobotHardware rh2(r2, map):((int)6, (int)0, EAST);
 }
