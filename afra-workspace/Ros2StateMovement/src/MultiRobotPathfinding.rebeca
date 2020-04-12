@@ -67,8 +67,8 @@ reactiveclass Map(15) {
 	
 	// USE THIS METHOD TO SET COLLISIONS ON THE MAP
 	void setCollisions() { 
-		// map[1][0] = COLLISION;
-		// map[1][1] = COLLISION;
+		map[1][0] = COLLISION;
+		map[1][1] = COLLISION;
 	}
 }
 
@@ -192,6 +192,10 @@ reactiveclass RobotHardware(10) {
 			return 0;
 		}
 		
+		if(xIndx == posX && yIndx == posY) {
+			return INFINITY;
+		}
+		
 		if(map[xIndx][yIndx] == COLLISION) {
 			return sqrt(dy * dy + dx * dx);
 		}
@@ -301,9 +305,6 @@ reactiveclass RobotHardware(10) {
 reactiveclass Pathfinder(50)
 {
 	statevars {
-		int xPos;
-	    int yPos;
-	    
 	    int targetX;
 	    int targetY;
 	    
@@ -337,11 +338,6 @@ reactiveclass Pathfinder(50)
 		{
 			return pi;
 		}
-	}
-	
-	msgsrv setPosition(int nextxPos, int nextyPos) {
-		self.xPos = nextxPos;
-		self.yPos = nextyPos;
 	}
 	
 	double distTo(double x, double y, double xTarget, double yTarget) {
@@ -455,7 +451,7 @@ reactiveclass Pathfinder(50)
 		return smallestIdx;
 	}
 	
-	int[30] generatePathFromTarget(int[20][20] parents) {
+	int[30] generatePathFromTarget(int[20][20] parents, int xPos, int yPos) {
 		int[30] path;
 		path = clearList(path);
 		
@@ -485,7 +481,7 @@ reactiveclass Pathfinder(50)
 		return path;
 	}
 	
-	msgsrv calcPath() {
+	msgsrv calcPath(int xPos, int yPos) {
 		if(changed) {
 			changed = false;
 			
@@ -512,7 +508,7 @@ reactiveclass Pathfinder(50)
 				int x = idxToX(curNodeIdx);
 				int y = idxToY(curNodeIdx);
 				if(x == targetX && y == targetY) {
-					int[30] path = generatePathFromTarget(parents);
+					int[30] path = generatePathFromTarget(parents, xPos, yPos);
 					
 					((Robot)sender).onNewPath(path);
 					break;
@@ -617,6 +613,8 @@ reactiveclass Robot(10) {
 	}
 	
 	statevars {
+		int curX;
+		int curY;
 		int targetX;
 		int targetY;
 		boolean finish;
@@ -636,7 +634,7 @@ reactiveclass Robot(10) {
 	}
 	
 	msgsrv rebuildPath() {
-		pf.calcPath();
+		pf.calcPath(curX, curY);
 		
 		self.rebuildPath() after(pathfinderDelay);
 	}
@@ -644,7 +642,8 @@ reactiveclass Robot(10) {
 	// Straightforward algorithm - just follow target, no collision avoidance
 	msgsrv onLaserScan(int posX, int posY, int rot, boolean moving, double[10] laserDistances) {
 		if(!finish) {
-			pf.setPosition(posX, posY);
+			curX = posX;
+			curY = posY;
 			
 			double curAngle = minAngle;
 			for(int i = 0; i < 10; i++) {
@@ -724,11 +723,7 @@ reactiveclass Robot(10) {
 main {
 	Map map():();
 	
-	Pathfinder pf1():();
-	Robot r1(rh1, pf1):((int)7, (int)0);
-	RobotHardware rh1(r1, map):(1, 0, EAST);
-	
-	Pathfinder pf2():();
-	Robot r2(rh2, pf2):((int)0, (int)0);
-	RobotHardware rh2(r2, map):((int)6, (int)0, EAST);
+	Pathfinder pf():();
+	Robot r(rh, pf):((int)5, (int)2);
+	RobotHardware rh(r, map):(0, 0, EAST);
 }
