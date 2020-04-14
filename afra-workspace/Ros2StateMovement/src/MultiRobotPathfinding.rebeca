@@ -584,7 +584,7 @@ reactiveclass Pathfinder(50)
 		return (int)x;
 	}
 	
-	msgsrv addCollision(double distance, double dYaw, int posX, int posY, int rot) {
+	void addCollision(double distance, double dYaw, int posX, int posY, int rot) {
 		double rotYaw = getYawFromRot(rot);
 		double yaw = rotYaw + dYaw - pi/2;
 	    double colTargetX = posX + distance * cos(yaw);
@@ -603,6 +603,12 @@ reactiveclass Pathfinder(50)
 	    		map[targetXIndex][targetYIndex] = true;
 	    	}
 	    }
+	}
+	
+	msgsrv addCollisions(double[10] collisions, double[10] angles, int collisionsCount, int posX, int posY, int rot) {
+		for(int i = 0; i < collisionsCount; i++) {
+			addCollision(collisions[i], angles[i], posX, posY, rot);
+		}
 	}
 }
 
@@ -646,14 +652,23 @@ reactiveclass Robot(10) {
 			curY = posY;
 			
 			double curAngle = minAngle;
+			double[10] collisions;
+			double[10] angles;
+			int collisionsCount = 0;
 			for(int i = 0; i < 10; i++) {
 				double dist = laserDistances[i];
 				
 				if(dist != INFINITY && dist != 0) {
-					pf.addCollision(dist, curAngle, posX, posY, rot);
+					collisions[collisionsCount] = dist;
+					angles[collisionsCount] = curAngle;
+					collisionsCount++;
 				}
 				
 				curAngle = curAngle + angleIncrement;
+			}
+			
+			if(collisionsCount > 0) {
+				pf.addCollisions(collisions, angles, collisionsCount, posX, posY, rot);
 			}
 			
 			moveNaive(posX, posY, rot, moving);
@@ -725,5 +740,5 @@ main {
 	
 	Pathfinder pf():();
 	Robot r(rh, pf):((int)5, (int)2);
-	RobotHardware rh(r, map):(0, 0, EAST);
+	RobotHardware rh(r, map):(0, 0, WEST);
 }
