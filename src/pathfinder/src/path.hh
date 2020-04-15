@@ -225,6 +225,32 @@ std::shared_ptr<std::vector<Coordinate>> FromInternalPath(std::shared_ptr<std::v
     return std::make_shared<std::vector<Coordinate>>(exPath);
 }
 
+std::vector<std::tuple<int, int>> GetNeighbors(double yaw) {
+    std::vector<std::tuple<int, int>> neighbors;
+
+    neighbors.push_back(std::make_tuple(1, 0));
+    neighbors.push_back(std::make_tuple(1, 1));
+    neighbors.push_back(std::make_tuple(0, 1));
+    neighbors.push_back(std::make_tuple(-1, 1));
+    neighbors.push_back(std::make_tuple(-1, 0));
+    neighbors.push_back(std::make_tuple(-1, -1));
+    neighbors.push_back(std::make_tuple(0, -1));
+    neighbors.push_back(std::make_tuple(1, -1));
+
+    int startIdx = 0;
+    if(yaw > M_PI_4 && yaw <= 3 * M_PI_4) {
+        startIdx = 2;
+    } else if(yaw > 3 * M_PI_4 || yaw < - 3 * M_PI_4) {
+        startIdx = 4;
+    } else if(yaw > - 3 * M_PI_4 && yaw < - M_PI_4) {
+        startIdx = 6;
+    }
+
+    std::rotate(neighbors.begin(), neighbors.begin() + startIdx ,neighbors.end());
+
+    return neighbors;
+}
+
 std::shared_ptr<std::vector<Coordinate>> Path::GetPathToTarget()
 {
     if(!this->changed)
@@ -258,55 +284,57 @@ std::shared_ptr<std::vector<Coordinate>> Path::GetPathToTarget()
             RCLCPP_INFO(logger, "Done calculating new path");
             return FromInternalPath(prevPath);
         }
+
+        auto neighbors = GetNeighbors(curYaw);
         
         // for each neighbor
-        for(int dx = -1; dx <= 1; dx++) {
-            for(int dy = -1; dy <= 1; dy++) {
-                
-                // IGNORE DIAGONALS
-                // TODO: HANDLE DIAGONALS
-                if(dx == 0 && dy == 0) {
-                    continue;
-                }
-                
-                int neighborX = x + dx;
-                int neighborY = y + dy;
-                auto neighborPos = std::make_pair(neighborX, neighborY);
-                
-                if(neighborX < 0 || neighborX >= SQUARES ||
-                    neighborY < 0 || neighborY >= SQUARES) {
-                    continue;
-                }
-                
-                bool collision = map[neighborX][neighborY];
-                if(collision) {
-                    continue;
-                }
-                
-                auto alreadyInClosedList = FindEqualPos(closedList, neighborPos);
-                if(alreadyInClosedList != nullptr) {
-                    continue;
-                }
-                
-                double g = curNode->g + sqrt(dx * dx + dy * dy); // TODO: handle diagonals
-                double h = AStarDist(neighborPos, targetPos);
-                double f = g + h;
-                
-                auto alreadyInOpenList = FindEqualPos(openList, neighborPos);
-                if(alreadyInOpenList != nullptr) {
-                    if(g > alreadyInOpenList->g) {
-                        continue;
-                    }
-                } else {
-                    alreadyInOpenList = std::make_shared<Node>(neighborPos);
-                }
-                
-                alreadyInOpenList->parent = curNode;
-                alreadyInOpenList->g = g;
-                alreadyInOpenList->h = h;
-                alreadyInOpenList->f = f;
-                openList.push_back(alreadyInOpenList);
+        for (auto neighbor: neighbors) {
+            auto dx = std::get<0>(neighbor);
+            auto dy = std::get<1>(neighbor);
+            
+            // IGNORE DIAGONALS
+            // TODO: HANDLE DIAGONALS
+            if(dx == 0 && dy == 0) {
+                continue;
             }
+            
+            int neighborX = x + dx;
+            int neighborY = y + dy;
+            auto neighborPos = std::make_pair(neighborX, neighborY);
+            
+            if(neighborX < 0 || neighborX >= SQUARES ||
+                neighborY < 0 || neighborY >= SQUARES) {
+                continue;
+            }
+            
+            bool collision = map[neighborX][neighborY];
+            if(collision) {
+                continue;
+            }
+            
+            auto alreadyInClosedList = FindEqualPos(closedList, neighborPos);
+            if(alreadyInClosedList != nullptr) {
+                continue;
+            }
+            
+            double g = curNode->g + sqrt(dx * dx + dy * dy); // TODO: handle diagonals
+            double h = AStarDist(neighborPos, targetPos);
+            double f = g + h;
+            
+            auto alreadyInOpenList = FindEqualPos(openList, neighborPos);
+            if(alreadyInOpenList != nullptr) {
+                if(g > alreadyInOpenList->g) {
+                    continue;
+                }
+            } else {
+                alreadyInOpenList = std::make_shared<Node>(neighborPos);
+            }
+            
+            alreadyInOpenList->parent = curNode;
+            alreadyInOpenList->g = g;
+            alreadyInOpenList->h = h;
+            alreadyInOpenList->f = f;
+            openList.push_back(alreadyInOpenList);
         }
     }
 

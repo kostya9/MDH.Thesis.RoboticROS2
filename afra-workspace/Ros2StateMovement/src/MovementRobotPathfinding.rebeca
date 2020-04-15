@@ -2,7 +2,7 @@ env int msgDelay = 20;
 env int pathfinderDelay = 50;
 env int moveDelay = 100;
 
-env int MAPSIZE = 20;
+env int MAPSIZE = 10;
 
 env double laserDist = 3;
 env double INFINITY = 9999;
@@ -24,13 +24,67 @@ env int EAST = 1;
 env int SOUTH = 2;
 env int WEST = 3;
 
+reactiveclass Map(15) {
+	statevars {
+		int[10][10] map;
+	}
+	
+	Map() {
+		setCollisions();
+	}
+	
+	msgsrv move(int xFrom, int yFrom, int xTo, int yTo) {
+		int prev = map[xFrom][yFrom];
+		
+		if(prev != COLLISION) {
+			assertion(false, "Expected the FROM coordinate to be a collision");
+		}
+		
+		int to = map[xTo][yTo];
+		
+		if(to == COLLISION) {
+			assertion(false, "Expected the TO coordinate not to be a collision");
+		}
+		
+		map[xFrom][yFrom] = 0;
+		map[xTo][yTo] = COLLISION;
+	}
+	
+	msgsrv subscribeToMapInfo() {
+		infiniteMapInfoSend((RobotHardware)sender) after(msgDelay);
+	}
+	
+	msgsrv infiniteMapInfoSend(RobotHardware h) {
+		h.laserScanSend(map);
+		
+		infiniteMapInfoSend(h) after(msgDelay);
+	}
+	
+	msgsrv setInitialPosition(int x, int y)
+	{
+		int to = map[x][y];
+		
+		if(to == COLLISION) {
+			assertion(false, "Expected the TO coordinate not to be a collision");
+		}
+		
+		map[x][y] = COLLISION;
+	}
+	
+	// USE THIS METHOD TO SET COLLISIONS ON THE MAP
+	void setCollisions() { 
+		map[4][2] = COLLISION;
+		map[5][2] = COLLISION;
+	}
+}
+
 reactiveclass RobotHardware(10) {
 	knownrebecs {
 		Robot robot;
+		Map mapRebec;
 	}
 	
 	statevars {
-		int[20][20] map;
 		int posX;
 		int posY;
 		int rot;
@@ -45,22 +99,26 @@ reactiveclass RobotHardware(10) {
 		boolean isFirstState;
 	}
 	
-	RobotHardware()
+	RobotHardware(int x, int y, int r)
 	{
+		posX = x;
+		posY = y;
+		rot = r;
+		
+		initMap();
+		
+		
 		moving = true;
 		isFirstState = true;
 		
 		nextRot = rot;
-		
-		setCollisions();
-		laserScanSend();
+
 		moveActuator() after(moveDelay);
 	}
 	
-	// USE THIS METHOD TO SET COLLISIONS ON THE MAP
-	void setCollisions() { 
-		map[1][0] = COLLISION;
-		map[1][1] = COLLISION;
+	void initMap() {
+		mapRebec.setInitialPosition(posX, posY);
+		mapRebec.subscribeToMapInfo();
 	}
 	
 	double tan(double angle) {
@@ -94,7 +152,7 @@ reactiveclass RobotHardware(10) {
 		return next;
 	}
 	
-	double getDistanceToCollision(double dy, double curAngle) {
+	double getDistanceToCollision(int[10][10] map, double dy, double curAngle) {
 		// f(x) = kx
 		// x = f(x) / k
 		// where k - the tangent of tilt angle
@@ -114,7 +172,7 @@ reactiveclass RobotHardware(10) {
 		else if(rot == SOUTH)
 		{
 			turnedX = (int)-dx;
-			turnedY = (int)dy;
+			turnedY = (int)-dy;
 		}
 		else if (rot == WEST)
 		{
@@ -126,13 +184,17 @@ reactiveclass RobotHardware(10) {
 		int xIndx = posX + turnedX;
 		
 		// check collision with end of map
-		if ((yIndx >= 20) || (yIndx < 0)) {
+		if ((yIndx >= MAPSIZE) || (yIndx < 0)) {
 			return 0;
 		}
 		
 		// check collision with end of map
-		if((xIndx >= 20) || (xIndx < 0)) {
+		if((xIndx >= MAPSIZE) || (xIndx < 0)) {
 			return 0;
+		}
+		
+		if(xIndx == posX && yIndx == posY) {
+			return INFINITY;
 		}
 		
 		if(map[xIndx][yIndx] == COLLISION) {
@@ -143,7 +205,7 @@ reactiveclass RobotHardware(10) {
 	}
 	
 	// Send laser data to robot software
-	msgsrv laserScanSend() {
+	msgsrv laserScanSend(int[10][10] map) {
 		double[10] dists;
 		// init array
 		for(int i = 0; i < lasers; i++) {
@@ -151,7 +213,7 @@ reactiveclass RobotHardware(10) {
 		}
 
 		// for each laser 
-		// go through distances from 0 to laserLength
+		// go through distances from stepLength to laserLength
 		// and if there is collision (and it is the first collision) 
 		//     write the distance to it
 		// else
@@ -161,17 +223,15 @@ reactiveclass RobotHardware(10) {
 		
 			// test the cells for collision where f(x) = dy
 			// f(x) - laser ray function
-			for (double dy = 0; dy <= laserLength; dy += stepLength) {
+			for (double dy = stepLength; dy <= laserLength; dy += stepLength) {
 				if(dists[i] == INFINITY) {
-					dists[i] = getDistanceToCollision(dy, curAngle);
+					dists[i] = getDistanceToCollision(map, dy, curAngle);
 				}
 			}
 			curAngle = curAngle + angleIncrement;
 		}
 		
 		robot.onLaserScan(posX, posY, rot, moving, dists);
-		
-		self.laserScanSend() after(msgDelay);
 	}
 	
 	// Move the actual robot (change pos)
@@ -210,6 +270,8 @@ reactiveclass RobotHardware(10) {
 			self.posX += dx;
 			self.prevPosY = posY;
 			self.posY += dy;
+
+			mapRebec.move(prevPosX, prevPosY, posX, posY);
 		}
 		
 		self.isFirstState = false;
@@ -241,16 +303,13 @@ reactiveclass RobotHardware(10) {
 	}
 }
 
-reactiveclass Pathfinder(11)
+reactiveclass Pathfinder(50)
 {
 	statevars {
-		int xPos;
-	    int yPos;
-	    
 	    int targetX;
 	    int targetY;
 	    
-	    boolean[20][20] map;
+	    boolean[10][10] map;
 	    
 	    boolean changed;
 	    
@@ -280,11 +339,6 @@ reactiveclass Pathfinder(11)
 		{
 			return pi;
 		}
-	}
-	
-	msgsrv setPosition(int nextxPos, int nextyPos) {
-		self.xPos = nextxPos;
-		self.yPos = nextyPos;
 	}
 	
 	double distTo(double x, double y, double xTarget, double yTarget) {
@@ -366,21 +420,21 @@ reactiveclass Pathfinder(11)
 	}
 	
 	int posToIdx(int x, int y) {
-		return x + y * 20;
+		return x + y * MAPSIZE;
 	}
 	
 	int idxToY(int idx) {
-		return idx / 20;
+		return idx / MAPSIZE;
 	}
 	
 	int idxToX(int idx) {
-		return idx % 20;
+		return idx % MAPSIZE;
 	}
 	
-	int idxOfSmallestF(int[30] openList, double[20][20] fs) {
+	int idxOfSmallestF(int[30] openList, double[10][10] fs) {
 		int smallestIdx = 0;
 		double smallestF = openList[0];
-		for(int i = 0; i < 127; i++) {
+		for(int i = 0; i < 30; i++) {
 			int cur = openList[i];
 			if(cur == -1) {
 				break;
@@ -398,7 +452,7 @@ reactiveclass Pathfinder(11)
 		return smallestIdx;
 	}
 	
-	int[30] generatePathFromTarget(int[20][20] parents) {
+	int[30] generatePathFromTarget(int[10][10] parents, int xPos, int yPos) {
 		int[30] path;
 		path = clearList(path);
 		
@@ -428,17 +482,17 @@ reactiveclass Pathfinder(11)
 		return path;
 	}
 	
-	msgsrv calcPath() {
+	msgsrv calcPath(int xPos, int yPos) {
 		if(changed) {
 			changed = false;
 			
-			int[20][20] parents;
+			int[10][10] parents;
 	    
 		    int[30] openList;
 		    int[30] closedList;
-		    double[20][20] hs;
-		    double[20][20] gs;
-		    double[20][20] fs;
+		    double[10][10] hs;
+		    double[10][10] gs;
+		    double[10][10] fs;
 			
 			openList = clearList(openList);
 			closedList = clearList(closedList);
@@ -446,6 +500,7 @@ reactiveclass Pathfinder(11)
 			int curPos = posToIdx(xPos, yPos);
 			openList = addToList(openList, curPos);
 			
+			boolean foundPath = false;
 			while(size(openList) != 0) {
 				int curOpenListIdx = idxOfSmallestF(openList, fs);
 				int curNodeIdx = openList[curOpenListIdx];
@@ -455,8 +510,8 @@ reactiveclass Pathfinder(11)
 				int x = idxToX(curNodeIdx);
 				int y = idxToY(curNodeIdx);
 				if(x == targetX && y == targetY) {
-					int[30] path = generatePathFromTarget(parents);
-					
+					int[30] path = generatePathFromTarget(parents, xPos, yPos);
+					foundPath = true;
 					((Robot)sender).onNewPath(path);
 					break;
 				}
@@ -475,8 +530,8 @@ reactiveclass Pathfinder(11)
 						int neighborY = y + dy;
 						int neighborIdx = posToIdx(neighborX, neighborY);
 						
-						if(neighborX < 0 || neighborX >= 20 ||
-							neighborY < 0 || neighborY >= 20) {
+						if(neighborX < 0 || neighborX >= MAPSIZE ||
+							neighborY < 0 || neighborY >= MAPSIZE) {
 							continue;
 						}
 						
@@ -509,6 +564,10 @@ reactiveclass Pathfinder(11)
 					}
 				}
 			}
+			
+			if(!foundPath) {
+				assertion(false, "Could not generate path");
+			}
 		}
 	}
 	
@@ -531,7 +590,7 @@ reactiveclass Pathfinder(11)
 		return (int)x;
 	}
 	
-	msgsrv addCollision(double distance, double dYaw, int posX, int posY, int rot) {
+	void addCollision(double distance, double dYaw, int posX, int posY, int rot) {
 		double rotYaw = getYawFromRot(rot);
 		double yaw = rotYaw + dYaw - pi/2;
 	    double colTargetX = posX + distance * cos(yaw);
@@ -546,11 +605,16 @@ reactiveclass Pathfinder(11)
 	       // out of bounds
 	    } else {
 	    	if(!map[targetXIndex][targetYIndex]) {
-	    		//assertion(false, "dist=" + distance + " yaw= " + yaw + " colTargetX=" + colTargetX + " colTargetY=" + colTargetY);
 	    		self.changed = true;
 	    		map[targetXIndex][targetYIndex] = true;
 	    	}
 	    }
+	}
+	
+	msgsrv addCollisions(double[10] collisions, double[10] angles, int collisionsCount, int posX, int posY, int rot) {
+		for(int i = 0; i < collisionsCount; i++) {
+			addCollision(collisions[i], angles[i], posX, posY, rot);
+		}
 	}
 }
 
@@ -561,6 +625,8 @@ reactiveclass Robot(10) {
 	}
 	
 	statevars {
+		int curX;
+		int curY;
 		int targetX;
 		int targetY;
 		boolean finish;
@@ -580,7 +646,7 @@ reactiveclass Robot(10) {
 	}
 	
 	msgsrv rebuildPath() {
-		pf.calcPath();
+		pf.calcPath(curX, curY);
 		
 		self.rebuildPath() after(pathfinderDelay);
 	}
@@ -588,17 +654,27 @@ reactiveclass Robot(10) {
 	// Straightforward algorithm - just follow target, no collision avoidance
 	msgsrv onLaserScan(int posX, int posY, int rot, boolean moving, double[10] laserDistances) {
 		if(!finish) {
-			pf.setPosition(posX, posY);
+			curX = posX;
+			curY = posY;
 			
 			double curAngle = minAngle;
+			double[10] collisions;
+			double[10] angles;
+			int collisionsCount = 0;
 			for(int i = 0; i < 10; i++) {
 				double dist = laserDistances[i];
 				
 				if(dist != INFINITY && dist != 0) {
-					pf.addCollision(dist, curAngle, posX, posY, rot);
+					collisions[collisionsCount] = dist;
+					angles[collisionsCount] = curAngle;
+					collisionsCount++;
 				}
 				
 				curAngle = curAngle + angleIncrement;
+			}
+			
+			if(collisionsCount > 0) {
+				pf.addCollisions(collisions, angles, collisionsCount, posX, posY, rot);
 			}
 			
 			moveNaive(posX, posY, rot, moving);
@@ -607,8 +683,8 @@ reactiveclass Robot(10) {
 	
 	void moveNaive(int posX, int posY, int rot, boolean moving) {
 		int curPathNode = path[curPathIdx];
-		int nextX = curPathNode % 20;
-		int nextY = curPathNode / 20;
+		int nextX = curPathNode % MAPSIZE;
+		int nextY = curPathNode / MAPSIZE;
 		
 		if(nextX == posX && nextY == posY && curPathNode != -1) {
 			curPathIdx++;
@@ -619,7 +695,7 @@ reactiveclass Robot(10) {
 		}
 		if(posX == self.targetX && posY == self.targetY) {
 			if(!finish) {
-				//assertion(false, "FINISHED!!");
+				assertion(false, "FINISHED!!");
 				rh.stop();
 				finish = true;
 			}
@@ -666,7 +742,9 @@ reactiveclass Robot(10) {
 }
 
 main {
+	Map map():();
+	
 	Pathfinder pf():();
-	Robot r(rh, pf):((int)5, (int)2);
-	RobotHardware rh(r):();
+	Robot r(rh, pf):((int)2, (int)2);
+	RobotHardware rh(r, map):(7, 2, WEST);
 }
