@@ -60,6 +60,16 @@ reactiveclass Map(15) {
 		infiniteMapInfoSend(h) after(msgDelay);
 	}
 	
+	msgsrv subscribeToMapInfoFromFollower() {
+		infiniteMapInfoSendToFollower((SimpleFollower)sender) after(moveDelay);
+	}
+	
+	msgsrv infiniteMapInfoSendToFollower(SimpleFollower f) {
+		f.onMap(map);
+		
+		infiniteMapInfoSendToFollower(f) after(moveDelay);
+	}
+	
 	msgsrv setInitialPosition(int x, int y)
 	{
 		int to = map[x][y];
@@ -772,14 +782,77 @@ reactiveclass Robot(10) {
 	}
 }
 
+reactiveclass SimpleFollower(20) {
+	knownrebecs {
+		Map map;
+	}
+
+	statevars {
+		int[4] path;
+		int posX;
+		int posY;
+		int pathPosition;
+		int maxPathPosition;
+		boolean stop;
+	}
+	
+	SimpleFollower() {
+		path[0] = 3;
+		path[1] = 2;
+		path[2] = 1;
+		path[3] = 0;
+		posX = 4;
+		posY = 0;
+		pathPosition = 0;
+		maxPathPosition = 4;
+		startMoving();
+	}
+	
+	void startMoving() {
+		map.setInitialPosition(posX, posY);
+		map.subscribeToMapInfoFromFollower();
+		move() after(2 * moveDelay);
+	}
+	
+	msgsrv onMap(int[10][10] mapInfo) {
+		if(pathPosition < maxPathPosition) {
+			int nextPos = path[pathPosition];
+			int nextX = nextPos % MAPSIZE;
+			int nextY = nextPos / MAPSIZE;
+			
+			if(mapInfo[nextX][nextY] == COLLISION) {
+				stop= true;
+			} else {
+				stop = false;
+			}
+		}
+	}
+	
+	msgsrv move() {
+		if(pathPosition < maxPathPosition) {
+			if(!stop) {
+				int nextPos = path[pathPosition];
+				int nextX = nextPos % MAPSIZE;
+				int nextY = nextPos / MAPSIZE;
+				
+				map.move(posX, posY, nextX, nextY);
+				posX = nextX;
+				posY = nextY;
+				pathPosition++;
+			}
+			self.move() after(2 * moveDelay);
+		}
+	}
+	
+	
+}
+
 main {
 	Map map():();
 	
-	Pathfinder pf1():();
-	Robot r1(rh1, pf1):((int)9, (int)1);
-	RobotHardware rh1(r1, map):(4, 1, EAST);
+	Pathfinder pf():();
+	Robot r(rh, pf):(5, 0);
+	RobotHardware rh(r, map):(0, 0, EAST);
 	
-	Pathfinder pf2():();
-	Robot r2(rh2, pf2):((int)2, (int)1);
-	RobotHardware rh2(r2, map):(7, 1, WEST);
+	SimpleFollower sf(map):();
 }
