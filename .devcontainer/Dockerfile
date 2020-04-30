@@ -34,11 +34,6 @@ RUN groupadd --gid $USER_GID $USERNAME \
     # Cleanup
     && rm -rf /var/lib/apt/lists/*
 
-
-# The entrypoint for the container to source the environment
-# COPY entrypoint.sh /setup/entrypoint.sh
-ENTRYPOINT [ "/setup/entrypoint.sh" ]
-
 # TODO: FIX ignition config
 # ~/.ignition/fuel/config.yaml
 # url: https://fuel.ignitionrobotics.org/
