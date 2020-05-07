@@ -2,10 +2,7 @@ package com.kostya9.rebeca_ros2_model_transformer.transformers;
 
 import com.kostya9.rebeca_ros2_model_transformer.cpp.CPP_KEYWORD;
 import com.kostya9.rebeca_ros2_model_transformer.cpp.CppCodeEmitter;
-import jdk.jshell.spi.ExecutionControl;
-import org.rebecalang.compiler.modelcompiler.corerebeca.objectmodel.FieldDeclaration;
-import org.rebecalang.compiler.modelcompiler.corerebeca.objectmodel.OrdinaryPrimitiveType;
-import org.rebecalang.compiler.modelcompiler.corerebeca.objectmodel.Type;
+import org.rebecalang.compiler.modelcompiler.corerebeca.objectmodel.*;
 import org.rebecalang.compiler.utils.TypesUtilities;
 
 import java.io.FileWriter;
@@ -55,17 +52,50 @@ public class CppTransformer {
             }
 
 
-            for (var declaration : field.getVariableDeclarators()) {
+            var variableDeclarators = field.getVariableDeclarators();
+            for (int i = 0; i < variableDeclarators.size(); i++) {
+                var declaration = variableDeclarators.get(i);
                 emitter.emit(declaration.getVariableName());
 
-                if(declaration.getVariableInitializer() != null) {
+                var initializer = declaration.getVariableInitializer();
+                if (initializer != null) {
                     emitter.signEqual();
-                    // TODO: SUPPORT INITIALIZER
-                    throw new ExecutionControl.NotImplementedException("Needto add initializer support");
+                    handleVariableInitializer(initializer);
                 }
-                emitter.comma();
-            }
 
+                if (i != variableDeclarators.size()) {
+                    emitter.comma();
+                }
+            }
         }
+    }
+
+    private void handleVariableInitializer(VariableInitializer initializer) throws IOException {
+        if (initializer instanceof OrdinaryVariableInitializer) {
+            var ordinaryInitializer = (OrdinaryVariableInitializer) initializer;
+            handleExpression(ordinaryInitializer.getValue());
+        }
+        else if (initializer instanceof ArrayVariableInitializer) {
+            var arrayInitializer = (ArrayVariableInitializer) initializer;
+
+            var values = arrayInitializer.getValues();
+            for (int i = 0; i < values.size(); i++) {
+                var nestedInitializer = values.get(i);
+
+                handleVariableInitializer(nestedInitializer);
+
+                if(i != values.size()) {
+                    emitter.comma();
+                }
+            }
+        }
+        else {
+            throw new UnsupportedOperationException("Variable initializer of type " + initializer.getType().toString() + " is not supported");
+        }
+    }
+
+    public void handleExpression(Expression expression) throws IOException {
+        // TODO: Add support for expression parsing
+        throw new IOException("Not implemented");
     }
 }
