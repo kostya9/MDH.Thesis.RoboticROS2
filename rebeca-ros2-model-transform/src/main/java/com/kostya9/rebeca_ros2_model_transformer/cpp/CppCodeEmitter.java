@@ -82,6 +82,10 @@ public class CppCodeEmitter {
         writer.write(value);
     }
 
+    public void emit(char c) throws IOException {
+        writer.append(c);
+    }
+
     private void emitNesting() throws IOException {
         int totalSpaces = nestingLevel * WHITESPACE_PER_NESTING;
         for (int i = 0; i < totalSpaces; i++) {
@@ -101,6 +105,14 @@ public class CppCodeEmitter {
 
     public void signEqual() throws IOException {
         writer.append('=');
+    }
+
+    public void flush() throws IOException {
+        writer.flush();
+    }
+
+    public void close() throws IOException {
+        writer.close();
     }
 }
 

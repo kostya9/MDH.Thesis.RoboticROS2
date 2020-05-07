@@ -3,25 +3,26 @@ package com.kostya9.rebeca_ros2_model_transformer.transformers;
 import com.kostya9.rebeca_ros2_model_transformer.cpp.CPP_KEYWORD;
 import com.kostya9.rebeca_ros2_model_transformer.cpp.CppCodeEmitter;
 import org.rebecalang.compiler.modelcompiler.corerebeca.objectmodel.*;
+import org.rebecalang.compiler.modelcompiler.probabilisticrebeca.objectmodel.ProbabilisticExpression;
 import org.rebecalang.compiler.utils.TypesUtilities;
 
-import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Random;
 import java.util.function.Function;
 
 public class CppTransformer {
     private final CppCodeEmitter emitter;
+    private final Random random;
 
-    public CppTransformer(String file) throws IOException {
-        emitter = new CppCodeEmitter(new FileWriter(file));
+    public CppTransformer(CppCodeEmitter emitter) throws IOException {
+        this.emitter = emitter;
+        this.random = new Random();
     }
 
     public void handleFieldDeclaration(FieldDeclaration field) throws IOException {
         var type = field.getType();
         if(type instanceof OrdinaryPrimitiveType) {
             var primitive = (OrdinaryPrimitiveType) type;
-
-            Function<Type, Boolean> ofType = (t) -> t == primitive;
 
             if(type == TypesUtilities.BOOLEAN_TYPE) {
                 emitter.keyword(CPP_KEYWORD.BOOL);
@@ -84,7 +85,7 @@ public class CppTransformer {
 
                 handleVariableInitializer(nestedInitializer);
 
-                if(i != values.size()) {
+                if (i != values.size()) {
                     emitter.comma();
                 }
             }
@@ -95,7 +96,50 @@ public class CppTransformer {
     }
 
     public void handleExpression(Expression expression) throws IOException {
-        // TODO: Add support for expression parsing
-        throw new IOException("Not implemented");
+        if (expression instanceof BinaryExpression) {
+            var binary = (BinaryExpression) expression;
+
+            handleExpression(binary.getLeft());
+            emitter.emit(binary.getOperator());
+            handleExpression(binary.getRight());
+        }
+        else if (expression instanceof UnaryExpression) {
+            var unary = (UnaryExpression) expression;
+            emitter.emit(unary.getOperator());
+        }
+        else if(expression instanceof TernaryExpression) {
+            var ternary = (TernaryExpression) expression;
+
+            handleExpression(ternary.getCondition());
+            emitter.emit('?');
+            handleExpression(ternary.getLeft());
+            emitter.emit(':');
+            handleExpression(ternary.getRight());
+        }
+        else if(expression instanceof NonDetExpression) {
+            var nonDet = (NonDetExpression) expression;
+            var choices = nonDet.getChoices();
+
+            var choiceIdx = random.nextInt(choices.size());
+            var choice = nonDet.getChoices().get(choiceIdx);
+            handleExpression(choice);
+        }
+        else if(expression instanceof PlusSubExpression) {
+            var plusSub = (PlusSubExpression) expression;
+            emitter.emit('(');
+            handleExpression(plusSub.getValue());
+            emitter.emit(')');
+        }
+        else if(expression instanceof Literal) {
+            var literal = (Literal) expression;
+
+            emitter.emit(literal.getLiteralValue());
+        }/*
+        else if(expression instanceof PrimaryExpression) {
+            // TODO: add primary handling
+        }*/
+        else {
+            throw new IOException("Unsupported expression " + expression.getType());
+        }
     }
 }
