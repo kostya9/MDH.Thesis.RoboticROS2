@@ -61,11 +61,12 @@ public class CppCodeEmitter {
         writer.append('<');
         writer.write(header);
         writer.append('>');
-        emitEndStatement();
+        endStatement();
     }
 
-    public void emitEndStatement() throws IOException {
+    public void endStatement() throws IOException {
         writer.append(';');
+        writer.append(' ');
     }
 
     public void endLine() throws IOException {
@@ -80,10 +81,12 @@ public class CppCodeEmitter {
 
     public void emit(String value) throws IOException {
         writer.write(value);
+        writer.append(' ');
     }
 
     public void emit(char c) throws IOException {
         writer.append(c);
+        writer.append(' ');
     }
 
     private void emitNesting() throws IOException {

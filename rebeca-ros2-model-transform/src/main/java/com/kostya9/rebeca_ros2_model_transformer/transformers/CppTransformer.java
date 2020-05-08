@@ -3,12 +3,11 @@ package com.kostya9.rebeca_ros2_model_transformer.transformers;
 import com.kostya9.rebeca_ros2_model_transformer.cpp.CPP_KEYWORD;
 import com.kostya9.rebeca_ros2_model_transformer.cpp.CppCodeEmitter;
 import org.rebecalang.compiler.modelcompiler.corerebeca.objectmodel.*;
-import org.rebecalang.compiler.modelcompiler.probabilisticrebeca.objectmodel.ProbabilisticExpression;
 import org.rebecalang.compiler.utils.TypesUtilities;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Random;
-import java.util.function.Function;
 
 public class CppTransformer {
     private final CppCodeEmitter emitter;
@@ -64,7 +63,7 @@ public class CppTransformer {
                     handleVariableInitializer(initializer);
                 }
 
-                if (i != variableDeclarators.size()) {
+                if (i != variableDeclarators.size() - 1) {
                     emitter.comma();
                 }
             }
@@ -85,7 +84,7 @@ public class CppTransformer {
 
                 handleVariableInitializer(nestedInitializer);
 
-                if (i != values.size()) {
+                if (i != values.size() - 1) {
                     emitter.comma();
                 }
             }
@@ -126,9 +125,10 @@ public class CppTransformer {
         }
         else if(expression instanceof PlusSubExpression) {
             var plusSub = (PlusSubExpression) expression;
-            emitter.emit('(');
+            emitter.startParenthesis();
             handleExpression(plusSub.getValue());
-            emitter.emit(')');
+            emitter.endParenthesis();
+            emitter.emit(plusSub.getOperator());
         }
         else if(expression instanceof Literal) {
             var literal = (Literal) expression;
@@ -140,6 +140,115 @@ public class CppTransformer {
         }*/
         else {
             throw new IOException("Unsupported expression " + expression.getType());
+        }
+    }
+
+    public void handleStatement(Statement statement) throws IOException {
+        if(statement instanceof BlockStatement) {
+            var block = (BlockStatement) statement;
+            emitter.startBracket();
+            for (var nestedStatement : block.getStatements()) {
+                handleStatement(nestedStatement);
+            }
+            emitter.endBracket();
+            emitter.endLine();
+        }
+        else if(statement instanceof BreakStatement) {
+            emitter.keyword(CPP_KEYWORD.BREAK);
+            emitter.endStatement();
+            emitter.endLine();
+        }
+        else if(statement instanceof ConditionalStatement) {
+            var conditional = (ConditionalStatement) statement;
+
+            emitter.keyword(CPP_KEYWORD.IF);
+            emitter.startBracket();
+            handleExpression(conditional.getCondition());
+            emitter.endBracket();
+            emitter.endLine();
+        }
+        else if(statement instanceof ContinueStatement) {
+            emitter.keyword(CPP_KEYWORD.CONTINUE);
+            emitter.endStatement();
+            emitter.endLine();
+        }
+        else if(statement instanceof Expression) {
+            var expression = (Expression) statement;
+            handleExpression(expression);
+            emitter.endStatement();
+            emitter.endLine();
+        }
+        else if(statement instanceof FieldDeclaration) {
+            var field = (FieldDeclaration) statement;
+            handleFieldDeclaration(field);
+            emitter.endStatement();
+            emitter.endLine();
+        }
+        else if(statement instanceof ForStatement) {
+            var forStatement = (ForStatement) statement;
+
+            emitter.keyword(CPP_KEYWORD.FOR);
+            emitter.startParenthesis();
+            handleExpression(forStatement.getCondition());
+            emitter.endStatement();
+            var forInitializer = forStatement.getForInitializer();
+            handleFieldDeclaration(forInitializer.getFieldDeclaration());
+            handleCommaExpressionList(forInitializer.getExpressions());
+            emitter.endStatement();
+            handleCommaExpressionList(forStatement.getForIncrement());
+            emitter.endStatement();
+            emitter.endParenthesis();
+            emitter.endLine();
+        }
+        else if(statement instanceof ReturnStatement) {
+            var returnStatement = (ReturnStatement) statement;
+
+            emitter.keyword(CPP_KEYWORD.RETURN);
+            handleExpression(returnStatement.getExpression());
+            emitter.endLine();
+        }
+        else if(statement instanceof WhileStatement) {
+            var whileStatement = (WhileStatement) statement;
+
+            emitter.keyword(CPP_KEYWORD.WHILE);
+            emitter.startParenthesis();
+            handleExpression(whileStatement.getCondition());
+            emitter.endParenthesis();
+            emitter.endLine();
+        }
+        else if(statement instanceof SwitchStatement) {
+            var switchStatement = (SwitchStatement) statement;
+
+            emitter.keyword(CPP_KEYWORD.SWITCH);
+            emitter.startParenthesis();
+            handleExpression(switchStatement.getExpression());
+            emitter.endParenthesis();
+            emitter.endLine();
+            emitter.startBracket();
+            for (var group : switchStatement.getSwitchStatementGroups()) {
+                emitter.keyword(CPP_KEYWORD.CASE);
+                handleExpression(group.getExpression());
+                emitter.emit(':');
+                emitter.endLine();
+                emitter.startBracket();
+                for (var innerStatement : group.getStatements()) {
+                    handleStatement(innerStatement);
+                }
+                emitter.endBracket();
+                emitter.endLine();
+            }
+            emitter.endBracket();
+        }
+    }
+
+    private void handleCommaExpressionList(List<Expression> expressions) throws IOException {
+        for (int i = 0; i < expressions.size(); i++) {
+            var expression = expressions.get(i);
+            handleExpression(expression);
+
+            if(i != expressions.size() - 1) {
+                emitter.comma();
+            }
         }
     }
 }
