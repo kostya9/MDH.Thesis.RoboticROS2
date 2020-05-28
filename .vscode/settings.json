@@ -63,7 +63,8 @@
         "cinttypes": "cpp",
         "typeindex": "cpp",
         "typeinfo": "cpp",
-        "python.h": "c"
+        "python.h": "c",
+        "shared_mutex": "cpp"
     },
     "terminal.integrated.rendererType": "canvas",
     "python.autoComplete.extraPaths": [

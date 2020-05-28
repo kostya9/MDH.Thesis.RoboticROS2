@@ -10,7 +10,7 @@
 using Coordinate = std::pair<double, double>;
 using CoordinateInternal = std::pair<int, int>;
 
-class Path
+class Pathfinder
 {
 private:
     CoordinateInternal curPos;
@@ -22,7 +22,7 @@ private:
     rclcpp::Logger logger;
     std::shared_ptr<std::vector<CoordinateInternal>> prevPath;
 public:
-    Path(rclcpp::Logger logger, double robotWidth = 0.5);
+    Pathfinder(rclcpp::Logger logger, double robotWidth = 0.5);
     void SetTarget(int targetX, int targetY);
     bool AddCollision(double distance, double dYaw);
     void SetPosition(double x, double y, double curYaw);
@@ -30,7 +30,7 @@ public:
     std::vector<std::pair<double, double>> GetCollisions();
 };
 
-Path::Path(rclcpp::Logger logger, double robotWidth) : logger(logger)
+Pathfinder::Pathfinder(rclcpp::Logger logger, double robotWidth) : logger(logger)
 {
     this->robotWidth = robotWidth;
     for(auto i = 0; i < SQUARES; i++) 
@@ -53,7 +53,7 @@ Coordinate FromInternal(CoordinateInternal in)
     return std::make_pair(in.first / (double)SQUARES_PER_METER, in.second / (double)SQUARES_PER_METER);
 }
 
-std::vector<std::pair<double, double>> Path::GetCollisions() 
+std::vector<std::pair<double, double>> Pathfinder::GetCollisions() 
 {
     std::vector<std::pair<double, double>> collisions;
     for(auto i = 0; i < SQUARES; i++) 
@@ -101,14 +101,14 @@ void AdvancePath(std::shared_ptr<std::vector<CoordinateInternal>> path, Coordina
     }
 }
 
-void Path::SetPosition(double x, double y, double curYaw) 
+void Pathfinder::SetPosition(double x, double y, double curYaw) 
 {
     this->curPos = ToInternal(std::make_pair(x, y));
     this->curYaw = curYaw;
     AdvancePath(prevPath, curPos);
 }
 
-bool Path::AddCollision(double distance, double dYaw) 
+bool Pathfinder::AddCollision(double distance, double dYaw) 
 {
     auto yaw = curYaw + dYaw;
     auto curPosEx = FromInternal(curPos);
@@ -143,7 +143,7 @@ bool Path::AddCollision(double distance, double dYaw)
     return addedCollision;
 }
 
-void Path::SetTarget(int targetX, int targetY)
+void Pathfinder::SetTarget(int targetX, int targetY)
 {
     this->targetPos = ToInternal(std::make_pair(targetX, targetY));
     this->changed = true;
@@ -251,7 +251,7 @@ std::vector<std::tuple<int, int>> GetNeighbors(double yaw) {
     return neighbors;
 }
 
-std::shared_ptr<std::vector<Coordinate>> Path::GetPathToTarget()
+std::shared_ptr<std::vector<Coordinate>> Pathfinder::GetPathToTarget()
 {
     if(!this->changed)
     {

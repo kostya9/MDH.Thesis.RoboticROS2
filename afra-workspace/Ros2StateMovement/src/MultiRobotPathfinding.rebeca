@@ -15,7 +15,7 @@ env double laserLength = 10.0;
 env double steps = 15;
 env double stepLength = laserLength / steps;
 
-env int COLLISION = -1;
+env int OBSTACLE = -1;
 
 
 // ROTATIONS
@@ -36,18 +36,18 @@ reactiveclass Map(15) {
 	msgsrv move(int xFrom, int yFrom, int xTo, int yTo) {
 		int prev = map[xFrom][yFrom];
 		
-		if(prev != COLLISION) {
-			assertion(false, "Expected the FROM coordinate to be a collision");
+		if(prev != OBSTACLE) {
+			assertion(false, "Expected the FROM coordinate to be an obstacle");
 		}
 		
 		int to = map[xTo][yTo];
 		
-		if(to == COLLISION) {
-			assertion(false, "Expected the TO coordinate not to be a collision");
+		if(to == OBSTACLE) {
+			assertion(false, "Expected the TO coordinate not to be an obstacle");
 		}
 		
 		map[xFrom][yFrom] = 0;
-		map[xTo][yTo] = COLLISION;
+		map[xTo][yTo] = OBSTACLE;
 	}
 	
 	msgsrv subscribeToMapInfo() {
@@ -74,17 +74,17 @@ reactiveclass Map(15) {
 	{
 		int to = map[x][y];
 		
-		if(to == COLLISION) {
+		if(to == OBSTACLE) {
 			assertion(false, "Expected the TO coordinate not to be a collision");
 		}
 		
-		map[x][y] = COLLISION;
+		map[x][y] = OBSTACLE;
 	}
 	
-	// USE THIS METHOD TO SET COLLISIONS ON THE MAP
+	// USE THIS METHOD TO SET OBSTACLES ON THE MAP
 	void setCollisions() { 
-		// map[1][0] = COLLISION;
-		// map[1][1] = COLLISION;
+		// map[1][0] = OBSTACLE;
+		// map[1][1] = OBSTACLE;
 	}
 }
 
@@ -207,7 +207,7 @@ reactiveclass RobotHardware(10) {
 			return INFINITY;
 		}
 		
-		if(map[xIndx][yIndx] == COLLISION) {
+		if(map[xIndx][yIndx] == OBSTACLE) {
 			return sqrt(dy * dy + dx * dx);
 		}
 		
@@ -820,7 +820,7 @@ reactiveclass SimpleFollower(20) {
 			int nextX = nextPos % MAPSIZE;
 			int nextY = nextPos / MAPSIZE;
 			
-			if(mapInfo[nextX][nextY] == COLLISION) {
+			if(mapInfo[nextX][nextY] == OBSTACLE) {
 				stop= true;
 			} else {
 				stop = false;

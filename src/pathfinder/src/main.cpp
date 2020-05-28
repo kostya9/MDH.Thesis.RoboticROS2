@@ -24,21 +24,21 @@ using namespace gazebo_msgs::msg;
 using namespace pathfinder::msg;
 using namespace nav_msgs::msg;
 
-class PathFinder : public rclcpp::Node
+class Robot : public rclcpp::Node
 {
 public:
-  PathFinder() : Node("pathfinder")
+  Robot() : Node("pathfinder")
   {
     auto qos = rclcpp::QoS(rclcpp::SensorDataQoS());
     _laserSub = this->create_subscription<sensor_msgs::msg::LaserScan>(
-      "laser_scan", qos, std::bind(&PathFinder::OnLaserScan, this, std::placeholders::_1));
+      "laser_scan", qos, std::bind(&Robot::OnLaserScan, this, std::placeholders::_1));
     _velocityPub = this->create_publisher<Twist>("cmd_vel", rclcpp::QoS(10));
-    _odomSub = this->create_subscription<Odometry>("odom", rclcpp::QoS(10), std::bind(&PathFinder::OnOdom, this, std::placeholders::_1));
-    _targetSub = this->create_subscription<Move>("move", rclcpp::QoS(10), std::bind(&PathFinder::OnMoveCommand, this, std::placeholders::_1));
-    _rotateSub = this->create_subscription<Rotate>("rotate", rclcpp::QoS(10), std::bind(&PathFinder::OnRotateCommand, this, std::placeholders::_1));
+    _odomSub = this->create_subscription<Odometry>("odom", rclcpp::QoS(10), std::bind(&Robot::OnOdom, this, std::placeholders::_1));
+    _targetSub = this->create_subscription<Move>("move", rclcpp::QoS(10), std::bind(&Robot::OnMoveCommand, this, std::placeholders::_1));
+    _rotateSub = this->create_subscription<Rotate>("rotate", rclcpp::QoS(10), std::bind(&Robot::OnRotateCommand, this, std::placeholders::_1));
     _pointCloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("collisions", rclcpp::QoS(10));
     _pathPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("path", rclcpp::QoS(10));
-    _path = std::make_unique<Path>(this->get_logger(), 0.75);
+    _path = std::make_unique<Pathfinder>(this->get_logger(), 0.75);
     _hasPose = false;
   }
 private:
@@ -53,7 +53,7 @@ private:
   PoseWithCovariance _curPos;
   Move::SharedPtr _target;
   PoseWithCovariance _obstacleEnd;
-  std::unique_ptr<Path> _path;
+  std::unique_ptr<Pathfinder> _path;
   int shakes = 0;
 
   bool rotate = false;
@@ -320,14 +320,12 @@ private:
 
 };
 
-// RCLCPP_COMPONENTS_REGISTER_NODE(PathFinder)
-
 
 int main(int argc, char **argv)
 {
   rclcpp::init(argc, argv);
 
-  auto node = std::make_shared<PathFinder>();
+  auto node = std::make_shared<Robot>();
 
   while(rclcpp::ok())
   {

@@ -73,8 +73,7 @@ reactiveclass Map(15) {
 	
 	// USE THIS METHOD TO SET COLLISIONS ON THE MAP
 	void setCollisions() { 
-		map[4][2] = COLLISION;
-		map[5][2] = COLLISION;
+		map[0][1] = COLLISION;
 	}
 }
 
@@ -695,7 +694,7 @@ reactiveclass Robot(10) {
 		}
 		if(posX == self.targetX && posY == self.targetY) {
 			if(!finish) {
-				assertion(false, "FINISHED!!");
+				//assertion(false, "FINISHED!!");
 				rh.stop();
 				finish = true;
 			}
@@ -742,9 +741,9 @@ reactiveclass Robot(10) {
 }
 
 main {
-	Map map():();
+	@priority(1) Map map():();
 	
-	Pathfinder pf():();
-	Robot r(rh, pf):((int)2, (int)2);
-	RobotHardware rh(r, map):(7, 2, WEST);
+	@priority(2) Pathfinder pf():();
+	@priority(3) Robot r(rh, pf):((int)5, (int)2);
+	@priority(4) RobotHardware rh(r, map):(0, 0, NORTH);
 }

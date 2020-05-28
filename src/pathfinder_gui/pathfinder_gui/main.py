@@ -120,13 +120,13 @@ class PathfinderGui(App):
         self.node = PathfinderGuiNode()
 
         self.buildMoveBtn()
-        self.buildRotBtn()
+        # self.buildRotBtn()
         self.buildChooseRobotDropdown()
 
         midBox = BoxLayout(orientation='vertical', spacing=20, size_hint_y= None)
         midBox.add_widget(self.box_dropdown)
         midBox.add_widget(self.box)
-        midBox.add_widget(self.box_rot)
+        # midBox.add_widget(self.box_rot)
 
         topBox = AnchorLayout(anchor_x= 'center', anchor_y= 'center')
         topBox.add_widget(midBox)

@@ -1,27 +1,30 @@
-reactiveclass ListContainer(12) {
-	statevars {
-		int[126] list;
+reactiveclass Subscriber(2) {
+	knownrebecs {
+		Publisher p;
+	}
+	Subscriber() {
+		subscribe();
 	}
 	
-	ListContainer() {
-		entrypoint();
+	void subscribe() {
+		p.subscribe();
+	}
+
+	msgsrv onNewMessage(int message) { }
+}
+
+reactiveclass Publisher(2) {
+	msgsrv subscribe() {
+		self.infiniteSend((Subscriber) sender);
 	}
 	
-	int[126] doSomethingWithList(int[126] inputList) {
-		for (int i = 0; i < 100; i++)
-		{
-			inputList[i] = i;
-		}
-		
-		return inputList;
-	}
-	
-	msgsrv entrypoint() {
-		list = doSomethingWithList(list);
-		entrypoint();
+	msgsrv infiniteSend(Subscriber s) {
+		s.onNewMessage(1);
+		infiniteSend(s) after(5);
 	}
 }
 
 main {
-	ListContainer l():();
+	Publisher p():();
+	Subscriber s(p):();
 }

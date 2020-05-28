@@ -1,9 +1,5 @@
 property{
 	define {
-		firstEl = l.list[0];
-	}
-
-	Assertion {
-		done: firstEl == 0;
+		
 	}
 }
