@@ -15,6 +15,7 @@ env double laserLength = 10.0;
 env double steps = 15;
 env double stepLength = laserLength / steps;
 
+// The marker of an obstacle on the map
 env int OBSTACLE = -1;
 
 
@@ -33,6 +34,7 @@ reactiveclass Map(15) {
 		setCollisions();
 	}
 	
+	// Moves the robot from source position to target position on the map
 	msgsrv move(int xFrom, int yFrom, int xTo, int yTo) {
 		int prev = map[xFrom][yFrom];
 		
@@ -60,6 +62,7 @@ reactiveclass Map(15) {
 		infiniteMapInfoSend(h) after(msgDelay);
 	}
 	
+	// Workaround the lack of generics - the same subscription logic as in subscribeToMapInfo 
 	msgsrv subscribeToMapInfoFromFollower() {
 		infiniteMapInfoSendToFollower((SimpleFollower)sender) after(moveDelay);
 	}
@@ -70,12 +73,13 @@ reactiveclass Map(15) {
 		infiniteMapInfoSendToFollower(f) after(moveDelay);
 	}
 	
+	// The initial position of the ROBOTs
 	msgsrv setInitialPosition(int x, int y)
 	{
 		int to = map[x][y];
 		
 		if(to == OBSTACLE) {
-			assertion(false, "Expected the TO coordinate not to be a collision");
+			assertion(false, "Expected the TO coordinate not to be an obstacle");
 		}
 		
 		map[x][y] = OBSTACLE;
@@ -83,8 +87,8 @@ reactiveclass Map(15) {
 	
 	// USE THIS METHOD TO SET OBSTACLES ON THE MAP
 	void setCollisions() { 
-		// map[1][0] = OBSTACLE;
-		// map[1][1] = OBSTACLE;
+		map[1][0] = OBSTACLE;
+		map[1][1] = OBSTACLE;
 	}
 }
 
@@ -151,7 +155,7 @@ reactiveclass RobotHardware(10) {
 	
 	double sqrt(double x) {
 		// Taylor series was not precise enough, so
-		// Newton's method was implemented lower
+		// Newton's method was implemented here
 		double prev = 4;
 		double next = 5;
 		while(abs(prev - next) > 0.1) {
@@ -214,7 +218,7 @@ reactiveclass RobotHardware(10) {
 		return INFINITY;
 	}
 	
-	// Send laser data to robot software
+	// Send laser data to robot software - SENSOR PUBLISHER
 	msgsrv laserScanSend(int[10][10] map) {
 		double[10] dists;
 		// init array
@@ -244,7 +248,7 @@ reactiveclass RobotHardware(10) {
 		robot.onLaserScan(posX, posY, rot, moving, dists);
 	}
 	
-	// Move the actual robot (change pos)
+	// Move the actual robot (change pos) - PERIODIC MOVEMENT MSG SERVER
 	msgsrv moveActuator() {
 		if(nextRot != rot) {
 			// rotating
@@ -288,14 +292,17 @@ reactiveclass RobotHardware(10) {
 		moveActuator() after(moveDelay);
 	}
 	
+	// Enable movement - ACTUATOR
 	msgsrv move() {
 		moving = true;
 	}
 	
+	// Stop movement - ACTUATOR
 	msgsrv stop() {
 		moving = false;
 	}
 	
+	// Rotate left - ACTUATOR
 	msgsrv turnLeft() {
 		if(rot == 0) {
 			nextRot = 3;
@@ -304,6 +311,7 @@ reactiveclass RobotHardware(10) {
 		}
 	}
 	
+	// Rotate right - ACTUATOR
 	msgsrv turnRight() {
 		if(rot == 3) {
 			nextRot = 0;
@@ -505,7 +513,8 @@ reactiveclass Pathfinder(50)
 		return arr;
 	}
 	
-	msgsrv calcPath(int xPos, int yPos, int rot) {
+	// Full AStar implementation (uses the internal map)
+	/*@priority(2)*/ msgsrv calcPath(int xPos, int yPos, int rot) {
 		if(changed) {
 			changed = false;
 			
@@ -528,21 +537,28 @@ reactiveclass Pathfinder(50)
 			int[8] dys = initArray(0, 1, 1, 1, 0, -1, -1, -1);
 			
 			boolean foundPath = false;
+			// Untill we have no cells to handle
 			while(size(openList) != 0) {
+				
+				// Take a cell from the open list
 				int curOpenListIdx = idxOfSmallestF(openList, fs);
 				int curNodeIdx = openList[curOpenListIdx];
 				openList = removeFromList(openList, curOpenListIdx);
+				
+				// We will handle it, so the next iteration should find it in the closed list
 				closedList = addToList(closedList, curNodeIdx);
 				
 				int x = idxToX(curNodeIdx);
 				int y = idxToY(curNodeIdx);
 				if(x == targetX && y == targetY) {
+					// We found the path, let's give it to the Robot
 					int[30] path = generatePathFromTarget(parents, xPos, yPos);
 					foundPath = true;
 					((Robot)sender).onNewPath(path);
 					break;
 				}
 				
+				// Find the nearest neighbor (according to rotation)
 				int startNeighbor;
 				if(rot == EAST) {
 					startNeighbor = 0;
@@ -556,12 +572,12 @@ reactiveclass Pathfinder(50)
 					startNeighbor = 6;
 				}
 				
-								// for each neighbor
+				// for each neighbor
 				for(int i = 0; i < 8; i++) {
 					int dx = dxs[(startNeighbor + i) % 8];
 					int dy = dys[(startNeighbor + i) % 8];
+					
 					// IGNORE DIAGONALS
-					// TODO: HANDLE DIAGONALS
 					if(dx + dy != 1 && dx + dy != -1) {
 						continue;
 					}
@@ -575,8 +591,9 @@ reactiveclass Pathfinder(50)
 						continue;
 					}
 					
-					boolean collision = map[neighborX][neighborY];
-					if(collision) {
+					// If there is an obstacle, assume path invalid
+					boolean obstacle = map[neighborX][neighborY];
+					if(obstacle) {
 						continue;
 					}
 					
@@ -585,9 +602,10 @@ reactiveclass Pathfinder(50)
 						continue;
 					}
 					
-					double g = gs[x][y] + 1; // TODO: handle diagonals
-					double h = distTo(neighborX, neighborY, targetX, targetY);
-					double f = g + h;
+					// Calculate scores
+					double g = gs[x][y] + 1; // The length of the path until here
+					double h = distTo(neighborX, neighborY, targetX, targetY); // The predicted length of path to the target
+					double f = g + h; // 'Cost' of current cell
 					
 					int alreadyInOpenList = findIdxInList(openList, neighborIdx);
 					if(alreadyInOpenList != -1) {
@@ -596,6 +614,7 @@ reactiveclass Pathfinder(50)
 						}
 					}
 					
+					// Update intermediate cost and path tables
 					parents[neighborX][neighborY] = curNodeIdx;
 					gs[neighborX][neighborY] = g;
 					hs[neighborX][neighborY] = h;
@@ -629,6 +648,7 @@ reactiveclass Pathfinder(50)
 		return (int)x;
 	}
 	
+	// Register a single obstacle on the map
 	void addCollision(double distance, double dYaw, int posX, int posY, int rot) {
 		double rotYaw = getYawFromRot(rot);
 		double yaw = rotYaw + dYaw - pi/2;
@@ -644,13 +664,15 @@ reactiveclass Pathfinder(50)
 	       // out of bounds
 	    } else {
 	    	if(!map[targetXIndex][targetYIndex]) {
+	    		// Mark than we need to rebuild the path 
 	    		self.changed = true;
 	    		map[targetXIndex][targetYIndex] = true;
 	    	}
 	    }
 	}
 	
-	msgsrv addCollisions(double[10] collisions, double[10] angles, int collisionsCount, int posX, int posY, int rot) {
+	// Register all the obstacles on the map
+	/*@priority(1)*/ msgsrv addCollisions(double[10] collisions, double[10] angles, int collisionsCount, int posX, int posY, int rot) {
 		for(int i = 0; i < collisionsCount; i++) {
 			addCollision(collisions[i], angles[i], posX, posY, rot);
 		}
@@ -685,19 +707,21 @@ reactiveclass Robot(10) {
 		pf.setTargetPosition(self.targetX, self.targetY);
 	}
 	
-	msgsrv rebuildPath() {
+	// Periodically request path rebuild (if needed)
+	/*@priority(1)*/ msgsrv rebuildPath() {
 		pf.calcPath(curX, curY, curRot);
 		
 		self.rebuildPath() after(pathfinderDelay);
 	}
 
-	// Straightforward algorithm - just follow target, no collision avoidance
-	msgsrv onLaserScan(int posX, int posY, int rot, boolean moving, double[10] laserDistances) {
+	// Save obstacles, avoid collisions in response to laser information - SENSOR SUBSCRIBER
+	/*@priority(2)*/ msgsrv onLaserScan(int posX, int posY, int rot, boolean moving, double[10] laserDistances) {
 		if(!finish) {
 			curX = posX;
 			curY = posY;
 			curRot = rot;
 			
+			// Extract collision information
 			double curAngle = minAngle;
 			double[10] collisions;
 			double[10] angles;
@@ -714,20 +738,24 @@ reactiveclass Robot(10) {
 				curAngle = curAngle + angleIncrement;
 			}
 			
+			// Pass the collision info to the PathFinder reactiveclass
 			if(collisionsCount > 0) {
 				pf.addCollisions(collisions, angles, collisionsCount, posX, posY, rot);
 			}
 			
+			// Move according to the path that the PathFinder generated
 			moveNaive(posX, posY, rot, moving);
 		}
 	}
 	
 	void moveNaive(int posX, int posY, int rot, boolean moving) {
+		// Get the current path checkpoint
 		int curPathNode = path[curPathIdx];
 		int nextX = curPathNode % MAPSIZE;
 		int nextY = curPathNode / MAPSIZE;
 		
 		if(nextX == posX && nextY == posY && curPathNode != -1) {
+			// If the next checkpoint is on current position, then assume that we passed it
 			curPathIdx++;
 		}
 		
@@ -736,11 +764,13 @@ reactiveclass Robot(10) {
 		}
 		if(posX == self.targetX && posY == self.targetY) {
 			if(!finish) {
-				assertion(false, "FINISHED!!");
+				// assertion(false, "FINISHED!!");
 				rh.stop();
 				finish = true;
 			}
 		} else {
+			// Rotate to the next path checkpoint if needed. 
+			// If not - move to the next checkpoint
 			boolean stop = false;
 			if(nextY > posY) {
 				if(rot != NORTH) {
@@ -770,7 +800,7 @@ reactiveclass Robot(10) {
 			if(stop && moving) {
 				rh.stop();
 			}
-			else if(!moving) {
+			else if(!moving && !stop) {
 				rh.move();
 			}
 		}
@@ -814,7 +844,9 @@ reactiveclass SimpleFollower(20) {
 		move() after(2 * moveDelay);
 	}
 	
+	// GETS THE MAP INFO PERIODICALLY - WORKAROUND
 	msgsrv onMap(int[10][10] mapInfo) {
+		// Follow the path in $path$ array
 		if(pathPosition < maxPathPosition) {
 			int nextPos = path[pathPosition];
 			int nextX = nextPos % MAPSIZE;
@@ -848,6 +880,20 @@ reactiveclass SimpleFollower(20) {
 }
 
 main {
+	/*@priority(1)*/ Map map():();
+	
+	/*@priority(2)*/ Pathfinder pf():();
+	/*@priority(3)*/ Robot r(rh, pf):(5, 0); // Set the target position
+	/*@priority(4)*/ RobotHardware rh(r, map):(0, 0, EAST); // Set the initial position and rotation and start robot
+	/**/
+	/*@priority(2)*/ Pathfinder pf1():();
+	/*@priority(3)*/ Robot r1(rh1, pf1):(7, 5); // Set the target position
+	/*@priority(4)*/ RobotHardware rh1(r1, map):(7, 0, EAST); // Set the initial position and rotation and start robot
+	
+	/*
+	// In order to run with SimpleFollower
+	// COMMENT OUT THE isOnTargetPosition1, finish1, hasMoved1, isFirstState1 defines 
+	// COMMENT OUT THE isRotatingOrMovingWhenNotFinished1, isOnTargetPositionWhenFinished assertions 
 	Map map():();
 	
 	Pathfinder pf():();
@@ -855,4 +901,5 @@ main {
 	RobotHardware rh(r, map):(0, 0, EAST);
 	
 	SimpleFollower sf(map):();
+	*/
 }
