@@ -880,17 +880,19 @@ reactiveclass SimpleFollower(20) {
 }
 
 main {
-	/*@priority(1)*/ Map map():();
-	
-	/*@priority(2)*/ Pathfinder pf():();
-	/*@priority(3)*/ Robot r(rh, pf):(5, 0); // Set the target position
-	/*@priority(4)*/ RobotHardware rh(r, map):(0, 0, EAST); // Set the initial position and rotation and start robot
-	/**/
-	/*@priority(2)*/ Pathfinder pf1():();
-	/*@priority(3)*/ Robot r1(rh1, pf1):(7, 5); // Set the target position
-	/*@priority(4)*/ RobotHardware rh1(r1, map):(7, 0, EAST); // Set the initial position and rotation and start robot
-	
 	/*
+	@priority(1) Map map():();
+	
+	@priority(2) Pathfinder pf():();
+	@priority(3) Robot r(rh, pf):(5, 0); // Set the target position
+	@priority(4) RobotHardware rh(r, map):(0, 0, EAST); // Set the initial position and rotation and start robot
+	
+	@priority(2) Pathfinder pf1():();
+	@priority(3) Robot r1(rh1, pf1):(7, 5); // Set the target position
+	@priority(4) RobotHardware rh1(r1, map):(7, 0, EAST); // Set the initial position and rotation and start robot
+	*/
+	
+	/**/
 	// In order to run with SimpleFollower
 	// COMMENT OUT THE isOnTargetPosition1, finish1, hasMoved1, isFirstState1 defines 
 	// COMMENT OUT THE isRotatingOrMovingWhenNotFinished1, isOnTargetPositionWhenFinished assertions 
@@ -901,5 +903,4 @@ main {
 	RobotHardware rh(r, map):(0, 0, EAST);
 	
 	SimpleFollower sf(map):();
-	*/
 }
