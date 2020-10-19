@@ -280,15 +280,15 @@ reactiveclass RobotHardware(10) {
 				dy = 0;
 			}
 			
-			self.prevPosX = posX;
-			self.posX += dx;
-			self.prevPosY = posY;
-			self.posY += dy;
+			prevPosX = posX;
+			posX += dx;
+			prevPosY = posY;
+			posY += dy;
 
 			mapRebec.move(prevPosX, prevPosY, posX, posY);
 		}
 		
-		self.isFirstState = false;
+		isFirstState = false;
 		moveActuator() after(moveDelay);
 	}
 	
@@ -335,9 +335,9 @@ reactiveclass Pathfinder(50)
 	}
 	
 	msgsrv setTargetPosition(int x, int y) {
-		self.targetX = x;
-		self.targetY = y;
-		self.changed = true;
+		targetX = x;
+		targetY = y;
+		changed = true;
 	}
 	
 	double getYawFromRot(int rot) {
@@ -665,7 +665,7 @@ reactiveclass Pathfinder(50)
 	    } else {
 	    	if(!map[targetXIndex][targetYIndex]) {
 	    		// Mark than we need to rebuild the path 
-	    		self.changed = true;
+	    		changed = true;
 	    		map[targetXIndex][targetYIndex] = true;
 	    	}
 	    }
@@ -697,14 +697,14 @@ reactiveclass Robot(10) {
 	}
 	
 	Robot(int x, int y) {
-		self.targetX = x;
-		self.targetY = y;
+		targetX = x;
+		targetY = y;
 		self.setTargetPos(); // cannot send to knownrebec
 		self.rebuildPath() after(pathfinderDelay);
 	}
 	
 	msgsrv setTargetPos() {
-		pf.setTargetPosition(self.targetX, self.targetY);
+		pf.setTargetPosition(targetX, targetY);
 	}
 	
 	// Periodically request path rebuild (if needed)
@@ -762,7 +762,7 @@ reactiveclass Robot(10) {
 		if(curPathNode == -1) {
 			rh.stop();
 		}
-		if(posX == self.targetX && posY == self.targetY) {
+		if(posX == targetX && posY == targetY) {
 			if(!finish) {
 				// assertion(false, "FINISHED!!");
 				rh.stop();
@@ -807,8 +807,8 @@ reactiveclass Robot(10) {
 	}
 	
 	msgsrv onNewPath(int[30] newPath) {
-		self.path = newPath;
-		self.curPathIdx = 0;
+		path = newPath;
+		curPathIdx = 0;
 	}
 }
 
